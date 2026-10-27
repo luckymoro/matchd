@@ -245,7 +245,7 @@ function setupMesh(lv){LEVEL=lv;var pos=BASE.v,idx=BASE.f;for(var i=0;i<lv;i++){
  SAMP_ALL=mkSampler(null);
  SAMP_BROW=mkSampler(function(x,y,z){return Math.abs(x)<1.05&&y>2.9&&y<3.55&&z>0.3});
  SAMP_BEARD=mkSampler(function(x,y,z){return y>0.75&&y<2.9&&z>-0.8&&Math.abs(x)<1.45});
- findRims();bakeMorphs();bakeLiner();buildShell()}
+ findRims();bakeMorphs();bakeLiner();bakeLip();g.setAttribute('aLip',new T.BufferAttribute(LIPM,1));buildShell()}
 function mkSampler(fl){var L=[],C=[],t=0,a=new T.Vector3(),b=new T.Vector3(),c=new T.Vector3();
  for(var i=0;i<NT;i++){var ia=IX[i*3]*3,ib=IX[i*3+1]*3,ic=IX[i*3+2]*3;
   if(fl&&!fl((REST[ia]+REST[ib]+REST[ic])/3,(REST[ia+1]+REST[ib+1]+REST[ic+1])/3,(REST[ia+2]+REST[ib+2]+REST[ic+2])/3))continue;
@@ -268,6 +268,23 @@ function findRims(){RIMS={eyes:[],mouth:null};var em=new Map(),nv=NV,t,k;
  gr.forEach(function(q){var c=new T.Vector3();q.v.forEach(function(v){c.x+=REST[v*3];c.y+=REST[v*3+1];c.z+=REST[v*3+2]});c.divideScalar(q.v.length);q.c0=c;
   var tolE=HIMP.on?0.45:0.25;if(Math.abs(Math.abs(c.x)-0.42)<tolE&&Math.abs(c.y-2.95)<tolE&&c.z>0.3&&q.v.length>=6){q.k=c.x>0?0:1;q.E0=new T.Vector3(c.x>0?0.5:-0.5,2.93,0.47);var s=0;q.v.forEach(function(v){s+=Math.hypot(REST[v*3]-c.x,REST[v*3+1]-c.y,REST[v*3+2]-c.z)});q.s0=s/q.v.length;q.hw=0;q.v.forEach(function(v){q.hw=Math.max(q.hw,Math.abs(REST[v*3]-c.x))});q.ks=1;if(HIMP.on&&RIM0[q.k]){q.ks=q.s0/RIM0[q.k].s0;q.E0=q.c0.clone().addScaledVector(RIM0[q.k].off,q.ks)}else if(!HIMP.on)RIM0[q.k]={off:q.E0.clone().sub(q.c0),s0:q.s0};RIMS.eyes.push(q)}
   else if(Math.abs(c.x)<0.12&&Math.abs(c.y-1.85)<0.2&&c.z>0.5){q.up=q.v.filter(function(v){return REST[v*3+1]>c.y});if(!q.up.length)q.up=q.v;var u0=new T.Vector3();q.up.forEach(function(v){u0.x+=REST[v*3];u0.y+=REST[v*3+1];u0.z+=REST[v*3+2]});q.u0=u0.divideScalar(q.up.length);RIMS.mouth=q}})}
+// Lip mask from the mouth opening: the slit's upper and lower edges are taken from the mouth rim, then the upper lip
+// (with a cupid's bow) and the fuller lower lip are grown from them. LIPS: +1 upper / -1 lower, LIPB: the light
+// "white roll" above the vermilion border, LIPA: occlusion along the slit.
+var LIPM=null,LIPS=null,LIPB=null,LIPA=null;
+function bakeLip(){LIPM=new Float32Array(NV);LIPS=new Float32Array(NV);LIPB=new Float32Array(NV);LIPA=new Float32Array(NV);var m=RIMS.mouth,i;
+ if(!m||m.v.length<8){for(i=0;i<NV;i++){var x0=REST[i*3],y0=REST[i*3+1],z0=REST[i*3+2];LIPM[i]=sm((0.52-Math.abs(x0))/0.2)*Math.exp(-sq(y0-1.85)/0.007)*sm((z0-0.72)/0.12);LIPS[i]=y0>1.85?1:-1}return}
+ var cy=0,W=0,NB=20,su=new Float32Array(NB+1),nu=new Float32Array(NB+1),sl=new Float32Array(NB+1),nl=new Float32Array(NB+1);
+ m.v.forEach(function(v){cy+=REST[v*3+1];W=Math.max(W,Math.abs(REST[v*3]))});cy/=m.v.length;
+ m.v.forEach(function(v){var ax=Math.abs(REST[v*3]),y=REST[v*3+1],b=Math.round(ax/W*NB);if(y>=cy){su[b]+=y;nu[b]++}else{sl[b]+=y;nl[b]++}});
+ function fill(s2,n2){var o=new Float32Array(NB+1),k,a,b;for(k=0;k<=NB;k++)o[k]=n2[k]?s2[k]/n2[k]:NaN;o[NB]=isNaN(o[NB])?cy:o[NB];
+  for(k=0;k<=NB;k++)if(isNaN(o[k])){a=k-1;while(a>=0&&isNaN(o[a]))a--;b=k+1;while(b<=NB&&isNaN(o[b]))b++;o[k]=a<0?o[b]:b>NB?o[a]:o[a]+(o[b]-o[a])*(k-a)/(b-a)}return o}
+ var UP=fill(su,nu),LO=fill(sl,nl);function at(A,ax){var f=clamp(ax/W,0,1)*NB,k=Math.min(NB-1,Math.floor(f));return A[k]+(A[k+1]-A[k])*(f-k)}
+ for(i=0;i<NV;i++){var x=REST[i*3],y=REST[i*3+1],z=REST[i*3+2],ax=Math.abs(x);if(z<0.55||ax>W*1.08||Math.abs(y-cy)>0.35)continue;
+  var xr=ax/(W*1.04),fw=Math.sqrt(Math.max(0,1-xr*xr)),yU=at(UP,ax),yL=at(LO,ax),dU=y-yU,dL=yL-y;
+  var hU=0.1*fw*(1-0.2*Math.exp(-ax*ax/0.003))*(1+0.12*Math.exp(-sq(ax-0.11)/0.004)),hL=0.125*Math.pow(fw,0.65);
+  var mU=y>=cy?sm((hU-dU)/0.012)*sm((dU+0.015)/0.012):0,mL=y<cy?sm((hL-dL)/0.018)*sm((dL+0.015)/0.012):0;
+  LIPM[i]=Math.max(mU,mL);LIPS[i]=y>=cy?1:-1;LIPB[i]=y>=cy?Math.exp(-sq(dU-hU-0.012)/0.00006)*fw:0;LIPA[i]=Math.exp(-sq(Math.min(Math.abs(dU),Math.abs(dL)))/0.00012)*sm((W*1.02-ax)/0.06)}}
 function bakeLiner(){LINER=new Float32Array(NV);RIMS.eyes.forEach(function(r){var c=r.c0;
  for(var i=0;i<NV;i++){var x=REST[i*3],y=REST[i*3+1],z=REST[i*3+2];if(Math.abs(x-c.x)>0.45||Math.abs(y-c.y)>0.3||z<0.3)continue;var d=9;
   for(var q=0;q<r.v.length;q++){var v=r.v[q];d=Math.min(d,Math.hypot(x-REST[v*3],y-REST[v*3+1],z-REST[v*3+2]))}
@@ -392,7 +409,7 @@ function skGen(N){var K=S.skin,cs=skinCol(),tl=skTile(),age=K.age||0,fr=K.freck|
 function skBake(){var N=+($('skres')&&$('skres').value)||1024;toast(tx('Generating skin maps…','جارٍ توليد خرائط البشرة…'));setTimeout(function(){var t0=performance.now();SKS.gen=skGen(N);S.skin.src='gen';S.skin.stone=1;skApply();syncUI();commit();toast(tx('Skin maps generated in ','تم توليد الخرائط خلال ')+Math.round(performance.now()-t0)+' ms')},30)}
 var skinMat=new T.MeshPhysicalMaterial({vertexColors:true,roughness:0.58,metalness:0,reflectivity:0.42,clearcoat:0.06,clearcoatRoughness:0.4,side:T.DoubleSide,envMapIntensity:0.85});
 skinMat.onBeforeCompile=function(sh){sh.uniforms.uH={value:SKT.h};sh.uniforms.uD={value:SKT.d};sh.uniforms.uBump=SKU.bump;sh.uniforms.uOil=SKU.oil;sh.uniforms.uSSS=SKU.sss;sh.uniforms.uTrn=SKU.trn;sh.uniforms.uAge=SKU.age;sh.uniforms.uFrk=SKU.frk;sh.uniforms.uHT=SKU.ht;sh.uniforms.uHairA=SKU.hA;sh.uniforms.uHairB=SKU.hB;sh.uniforms.uStub=SKU.stub;sh.uniforms.uFadeN=SKU.fadeN;sh.uniforms.uFadeShow=SKU.fadeShow;sh.uniforms.uMapShow=MAPSHOW;sh.uniforms.uMicro=SKU.micro;sh.uniforms.uFuzz=SKU.fuzz;sh.uniforms.uLut=SKU.lut;sh.uniforms.uKeyV=LU.uL1;sh.uniforms.uSkOn=SKS.on;sh.uniforms.uSkMap=SKS.map;sh.uniforms.uSkP=SKS.p;sh.uniforms.uSkQ=SKS.q;sh.uniforms.uSkF=SKS.f;sh.uniforms.uSkB=SKS.u.base;sh.uniforms.uSkN=SKS.u.norm;sh.uniforms.uSkR=SKS.u.rough;sh.uniforms.uSkC=SKS.u.cav;sh.uniforms.uSkS=SKS.u.sss;
- sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nattribute vec3 aRest;attribute float aRough;attribute vec2 aShort;varying vec2 vShort;attribute float aFade;varying float vFade;attribute float aGv;varying float vGv;attribute float aCurv;varying float vCurv;varying vec3 vOP;varying vec3 vON;varying float vThin;varying float vRough;').replace('#include <begin_vertex>','#include <begin_vertex>\nvOP=aRest;vON=normal;vRough=aRough;vShort=aShort;vFade=aFade;vGv=aGv;vCurv=aCurv;float ea=smoothstep(0.95,1.35,abs(aRest.x))*step(2.2,aRest.y)*step(aRest.y,3.4);float nz=exp(-(aRest.x*aRest.x/0.12+(aRest.y-2.45)*(aRest.y-2.45)/0.15))*step(0.9,aRest.z);vThin=clamp(ea+nz*0.8,0.0,1.0);');
+ sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nattribute vec3 aRest;attribute float aRough;attribute vec2 aShort;varying vec2 vShort;attribute float aFade;varying float vFade;attribute float aGv;varying float vGv;attribute float aCurv;varying float vCurv;attribute float aLip;varying float vLip;varying vec3 vOP;varying vec3 vON;varying float vThin;varying float vRough;').replace('#include <begin_vertex>','#include <begin_vertex>\nvOP=aRest;vON=normal;vRough=aRough;vShort=aShort;vFade=aFade;vGv=aGv;vCurv=aCurv;vLip=aLip;float ea=smoothstep(0.95,1.35,abs(aRest.x))*step(2.2,aRest.y)*step(aRest.y,3.4);float nz=exp(-(aRest.x*aRest.x/0.12+(aRest.y-2.45)*(aRest.y-2.45)/0.15))*step(0.9,aRest.z);vThin=clamp(ea+nz*0.8,0.0,1.0);');
  var DIRECT_OLD='reflectedLight.directDiffuse += ( 1.0 - clearcoatDHR ) * irradiance * BRDF_Diffuse_Lambert( material.diffuseColor );';
  var DIRECT_NEW=`{
   // red diffuses furthest under the skin, so it sees the smooth normal; blue keeps the pore-level detail
@@ -422,13 +439,15 @@ skinMat.onBeforeCompile=function(sh){sh.uniforms.uH={value:SKT.h};sh.uniforms.uD
  var lfb=T.ShaderChunk.lights_fragment_begin.split('\n').map(function(l){if(l.indexOf('getShadow( directionalShadowMap')<0)return l;return l.replace('directLight.color *= ','{float shS = ').replace(/;\s*$/,';directLight.color *= mix(vec3(shS),pow(vec3(shS),vec3(0.42,1.0,1.5)),clamp(uSSS*gSssK,0.0,1.0));}')}).join('\n');
  if(lfb.indexOf('float shS')<0)console.warn('skin shadow anchor missing');sh.fragmentShader=sh.fragmentShader.replace('#include <lights_fragment_begin>',lfb);
  sh.fragmentShader=sh.fragmentShader.replace('#include <common>',`#include <common>
-uniform float uMicro;uniform float uFuzz;uniform sampler2D uLut;uniform vec3 uKeyV;varying float vCurv;vec3 gSmN=vec3(0.0,0.0,1.0);float gCav=1.0;float gSssK=1.0;
+varying float vLip;uniform float uMicro;uniform float uFuzz;uniform sampler2D uLut;uniform vec3 uKeyV;varying float vCurv;vec3 gSmN=vec3(0.0,0.0,1.0);float gCav=1.0;float gSssK=1.0;
 uniform float uSkOn;uniform vec4 uSkMap;uniform vec4 uSkP;uniform vec4 uSkQ;uniform vec4 uSkF;uniform sampler2D uSkB;uniform sampler2D uSkN;uniform sampler2D uSkR;uniform sampler2D uSkC;uniform sampler2D uSkS;
 vec3 sssLut(float nl,float c){return texture2D(uLut,vec2(nl*0.5+0.5,c)).rgb;}
 varying vec3 vOP;varying vec3 vON;varying float vThin;varying float vRough;uniform sampler2D uH;uniform sampler2D uD;uniform float uBump;uniform float uOil;uniform float uSSS;uniform float uTrn;uniform float uAge;uniform float uFrk;uniform sampler2D uHT;uniform vec3 uHairA;uniform vec3 uHairB;uniform float uStub;varying vec2 vShort;varying float vFade;varying float vGv;uniform float uMapShow;uniform float uFadeN;uniform float uFadeShow;
 vec3 tpW(){vec3 w=pow(abs(normalize(vON)),vec3(4.0));return w/(w.x+w.y+w.z);}
 float tpH(){vec3 w=tpW();vec3 p=vOP*1.05;return texture2D(uH,p.zy).r*w.x+texture2D(uH,p.xz).r*w.y+texture2D(uH,p.xy).r*w.z;}
 float tpM(){vec3 w=tpW();vec3 p=vOP*3.1;return texture2D(uH,p.zy).b*w.x+texture2D(uH,p.xz).b*w.y+texture2D(uH,p.xy).b*w.z;}
+// fine vertical lip lines, faded out where they would alias
+float lipLn(){if(vLip<0.01)return 0.0;float ph=vOP.x*118.0+sin(vOP.y*31.0+vOP.x*7.0)*0.9+texture2D(uH,vOP.xy*0.6).r*2.5,fw=fwidth(ph),gq=pow(1.0-abs(sin(ph)),5.0)*(0.55+0.45*texture2D(uH,vOP.xy*1.7+0.3).r);return -gq*vLip*0.0011*smoothstep(1.6,0.4,fw);}
 float tpF(){vec3 w=tpW();vec3 p=vOP*0.7;return texture2D(uH,p.zy).g*w.x+texture2D(uH,p.xz).g*w.y+texture2D(uH,p.xy).g*w.z;}
 vec3 tpD(){vec3 w=tpW();vec3 p=vOP*0.7;return texture2D(uD,p.zy).rgb*w.x+texture2D(uD,p.xz).rgb*w.y+texture2D(uD,p.xy).rgb*w.z;}
 float wrk(){if(uAge<=0.001)return 0.0;vec3 p=vOP;float ax=abs(p.x);
@@ -442,7 +461,7 @@ if(uSkOn>0.5){skW=smoothstep(0.12,0.55,normalize(vON).z)*step(0.0,skUV.x)*step(s
 {vec3 procC=diffuseColor.rgb*tpD()*1.25;
  if(skW>0.0){
   float cav0=texture2D(uSkC,skUV).r;vec3 scC=procC;
-  if(uSkF.x>0.5){vec3 sc=texture2D(uSkB,skUV).rgb,lo=texture2D(uSkB,skUV,7.0).rgb,det=clamp(sc/max(lo,vec3(0.04)),vec3(0.35),vec3(2.4));scC=mix(diffuseColor.rgb*det,sc,uSkP.y);}
+  if(uSkF.x>0.5){vec3 sc=texture2D(uSkB,skUV).rgb,lo=texture2D(uSkB,skUV,7.0).rgb,det=mix(clamp(sc/max(lo,vec3(0.04)),vec3(0.35),vec3(2.4)),vec3(1.0),0.75*vLip);scC=mix(diffuseColor.rgb*det,sc,uSkP.y*(1.0-vLip));}
   scC*=mix(1.0,mix(0.62,1.0,cav0),clamp(uSkQ.y,0.0,1.0)*0.8);
   vec3 ssm=texture2D(uSkS,skUV).rgb;gSssK=mix(1.0,clamp(0.55+(ssm.r-ssm.g-0.3)*2.2,0.4,1.7),skW*clamp(uSkQ.z,0.0,1.5));
   procC=mix(procC,scC,skW*uSkP.x);}
@@ -467,14 +486,15 @@ if(uFadeShow>0.5&&vFade>0.5&&vFade<uFadeN+0.5){float fd=abs(vFade-floor(vFade+0.
  .replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
 roughnessFactor+=(0.55-tpH())*0.3+uAge*0.06-vRough;gCav=smoothstep(0.18,0.6,tpH())*mix(1.0,tpM(),0.5*clamp(uMicro,0.0,1.0));
 if(skW>0.0){float rr=texture2D(uSkR,skUV).r;roughnessFactor*=mix(1.0,clamp(rr/0.5,0.5,1.8),skW*uSkP.x*clamp(uSkQ.x,0.0,1.5));gCav=mix(gCav,mix(0.25,1.0,texture2D(uSkC,skUV).r),skW*uSkP.x*clamp(uSkQ.y,0.0,1.0));}
+roughnessFactor=mix(roughnessFactor,clamp(0.5-vRough*0.6,0.18,0.65),vLip);gCav=mix(gCav,1.0,vLip*0.6);
 float tzn=exp(-pow(vOP.x/0.9,2.0))*smoothstep(1.9,2.5,vOP.y)*smoothstep(-0.2,0.6,vOP.z)*smoothstep(4.2,3.6,vOP.y);
 roughnessFactor=clamp(roughnessFactor-tzn*uOil*0.3*(1.0-gHair),0.1,1.0);roughnessFactor=mix(roughnessFactor,0.85,gHair*0.8);`)
  .replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
 gSmN=normal;
-if(skW*uSkP.x*uSkP.z>0.001){vec3 mn=texture2D(uSkN,skUV).xyz*2.0-1.0;mn.y*=uSkP.w;mn.xy*=uSkP.z*skW*uSkP.x;mn.z=sqrt(max(0.0,1.0-dot(mn.xy,mn.xy)));
+if(skW*uSkP.x*uSkP.z>0.001){vec3 mn=texture2D(uSkN,skUV).xyz*2.0-1.0;mn.y*=uSkP.w;mn.xy*=uSkP.z*skW*uSkP.x*(1.0-0.85*vLip);mn.z=sqrt(max(0.0,1.0-dot(mn.xy,mn.xy)));
  vec3 q0=dFdx(-vViewPosition),q1=dFdy(-vViewPosition);vec2 st0=dFdx(skUV),st1=dFdy(skUV);vec3 q1p=cross(q1,normal),q0p=cross(normal,q0);vec3 Tt=q1p*st0.x+q0p*st1.x,Bt=q1p*st0.y+q0p*st1.y;
  float dtt=max(dot(Tt,Tt),dot(Bt,Bt));float scl=dtt==0.0?0.0:faceDirection*inversesqrt(dtt);normal=normalize(mat3(Tt*scl,Bt*scl,normal)*mn);}
-{float axS=abs(vOP.x),dyN=vOP.y-2.5,dyC=vOP.y-2.45,dyL=vOP.y-1.85;float noseM=exp(-(vOP.x*vOP.x/0.05+dyN*dyN/0.12))*step(0.9,vOP.z),chkM=exp(-((axS-0.72)*(axS-0.72)/0.08+dyC*dyC/0.1))*step(0.3,vOP.z),lipM=exp(-dyL*dyL/0.008-vOP.x*vOP.x/0.25)*step(0.8,vOP.z);float pm=(0.75+0.9*noseM+0.45*chkM)*(1.0-0.8*lipM);float hH=tpH()*uBump*0.0042*pm*(1.0-0.65*skW*uSkP.x)+(tpM()-1.0)*uMicro*0.0014*(1.0-0.6*lipM)-wrk()*0.007;vec3 dpx=dFdx(-vViewPosition),dpy=dFdy(-vViewPosition);float dHx=dFdx(hH),dHy=dFdy(hH);vec3 rr1=cross(dpy,normal),rr2=cross(normal,dpx);float det=dot(dpx,rr1);vec3 gr=sign(det)*(dHx*rr1+dHy*rr2);normal=normalize(abs(det)*normal-gr);}`)
+{float axS=abs(vOP.x),dyN=vOP.y-2.5,dyC=vOP.y-2.45,dyL=vOP.y-1.85;float noseM=exp(-(vOP.x*vOP.x/0.05+dyN*dyN/0.12))*step(0.9,vOP.z),chkM=exp(-((axS-0.72)*(axS-0.72)/0.08+dyC*dyC/0.1))*step(0.3,vOP.z),lipM=vLip;float pm=(0.75+0.9*noseM+0.45*chkM)*(1.0-0.8*lipM);float hH=tpH()*uBump*0.0042*pm*(1.0-0.65*skW*uSkP.x)+(tpM()-1.0)*uMicro*0.0014*(1.0-0.6*lipM)-wrk()*0.007+lipLn();vec3 dpx=dFdx(-vViewPosition),dpy=dFdy(-vViewPosition);float dHx=dFdx(hH),dHy=dFdy(hH);vec3 rr1=cross(dpy,normal),rr2=cross(normal,dpx);float det=dot(dpx,rr1);vec3 gr=sign(det)*(dHx*rr1+dHy*rr2);normal=normalize(abs(det)*normal-gr);}`)
  .replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
 {float rim=pow(1.0-clamp(dot(normalize(vViewPosition),normal),0.0,1.0),3.0);float ear=smoothstep(0.9,1.4,abs(vOP.x))*step(2.2,vOP.y)*step(vOP.y,3.4);
 float NoVf=clamp(dot(normalize(vViewPosition),normal),0.0,1.0),fz=pow(1.0-NoVf,4.0)*(0.25+0.75*clamp(dot(normal,uKeyV)*0.6+0.4,0.0,1.0));
@@ -918,14 +938,17 @@ function buildScalp(){var L=LY.scalp;disposeL(L);grmAlloc();var c=cur,R=rng(c.se
  trimmed=0;if(S.fade.on)applyFade();updFadeViz();updHairCols();updHairMat()}
 
 /* ---------- eyebrows, beard, lashes ---------- */
-function browW(x,y,z){var ax=Math.abs(x);if(z<0.45)return 0;var t=(ax-0.1)/0.82;if(t<0||t>1)return 0;
- var cy=3.16+S.brow.arch*0.1*Math.sin(Math.PI*Math.min(1,t*1.15))-0.03*t,th=(0.065*(1-t)+0.028)*S.brow.thick,d=Math.abs(y-cy)/th;if(d>=1)return 0;return(1-d*d)*sm(t/0.08)*sm((1-t)/0.1)}
-function buildBrow(){var L=LY.brow;disposeL(L);if(!S.brow.on)return;var R=rng(313),n=Math.round(9000*S.brow.dens),H=L.H=newH(n),k=0,tries=0,want=new T.Vector3(),dir=new T.Vector3();
+var BWt=0,BWd=0;
+function browW(x,y,z,wf){var ax=Math.abs(x);if(z<0.45)return 0;var t=(ax-0.1)/0.82;if(t<0||t>1)return 0;
+ var cy=3.16+S.brow.arch*0.1*Math.sin(Math.PI*Math.min(1,t*1.15))-0.03*t,th=(0.065*(1-t)+0.028)*S.brow.thick*(wf||1),ds=(y-cy)/th,d=Math.abs(ds);if(d>=1)return 0;BWt=t;BWd=ds;return(1-d*d)*sm(t/0.15)*sm((1-t)/0.1)}
+function browCol(){var h=col(cur.h);return S.brow.link?h.lerp(BROWW,0.32).multiplyScalar(1.05):col(S.brow.c)}
+function buildBrow(){var L=LY.brow;disposeL(L);if(!S.brow.on)return;var R=rng(313),n=Math.round(10500*S.brow.dens),H=L.H=newH(n),k=0,tries=0,want=new T.Vector3(),dir=new T.Vector3();
  while(k<n&&tries<n*40){tries++;var s=sample(SAMP_BROW,R),w=browW(s.x,s.y,s.z);if(w<=0||R()>w)continue;
   var ax=Math.abs(s.x),sx=s.x<0?-1:1,tt=clamp((ax-0.12)/0.8,0,1),m=sm(tt*1.6);
-  want.set(sx*(0.3+0.7*m),1-1.2*m,0.1);want.addScaledVector(s.n,-want.dot(s.n)).normalize();dir.copy(want).multiplyScalar(0.8).addScaledVector(s.n,0.2).normalize();
-  addStrand(H,k,s,dir,0.075*S.brow.len*(0.7+0.6*R())*(1-0.35*tt),R,L.off);k++}
- finalize(L,k,3);var U=L.U;U.uBend.value=0.9;U.uSag.value=0.05;U.uCurl.value=0.12;U.uCoil.value=0;U.uFreq.value=0;U.uWaveA.value=0.003;U.uLock.value=0.06;updHairCols();updHairMat()}
+  var hd=1-sm((BWt-0.08)/0.18),tl=sm((BWt-0.68)/0.25),vt=hd*0.8+(1-hd)*((-0.55*BWd+0.12)*(1-tl)-0.34*tl),lt=0.45*hd+(1-hd),an=(R()-0.5)*0.35,ca=Math.cos(an),sa=Math.sin(an);
+  want.set(sx*(lt*ca-vt*sa),lt*sa+vt*ca,0);want.addScaledVector(s.n,-want.dot(s.n)).normalize();dir.copy(want).multiplyScalar(0.96).addScaledVector(s.n,0.14).normalize();
+  addStrand(H,k,s,dir,0.064*S.brow.len*(0.7+0.6*R())*(1-0.3*tl)*(0.72+0.28*(1-hd)),R,L.off);k++}
+ finalize(L,k,3);var U=L.U;U.uBend.value=1;U.uSag.value=0.02;U.uCurl.value=0.03;U.uCoil.value=0;U.uFreq.value=0;U.uWaveA.value=0.003;U.uLock.value=0.06;updHairCols();updHairMat()}
 function mustM(x,y,z){var ax=Math.abs(x);if(z<0.6)return 0;return sm((2.22-y)/0.05)*sm((y-1.95)/0.03)*sm((0.52-ax)/0.08)}
 function chinM(x,y,z){var ax=Math.abs(x);if(z<0.45)return 0;return sm((1.74-y)/0.04)*sm((y-1.12)/0.1)*sm((0.4-ax)/0.1)}
 function fullM(x,y,z){var ax=Math.abs(x),top=2.2+0.5*sm((ax-0.5)/0.6),up=sm((top-y)/0.07),back=sm((z+0.55)/0.18),lowY=0.95+0.15*sm((ax-0.4)/0.5),low=sm((y-lowY)/0.12);
@@ -941,41 +964,94 @@ function buildBeard(){var L=LY.beard;disposeL(L);var b=S.beard,cfg=BEARD[b.style
  var ns=Math.round(b.stub*26000),stub=[],tr=0;while(stub.length/4<ns&&tr<ns*6){tr++;var s2=sample(SAMP_BEARD,R),m2=fullM(s2.x,s2.y,s2.z);if(m2<=0||R()>m2)continue;stub.push(s2.ti,s2.u,s2.v,0.35+R()*0.5)}
  mkStub(L,stub);updHairCols();updHairMat()}
 function buildLash(){var L=LY.lash;disposeL(L);if(!S.lash.on||!RIMS.eyes.length)return;var R=rng(91),list=[];
- RIMS.eyes.forEach(function(r){var c=r.c0;r.e.forEach(function(e){var a=e.a,b=e.b,my=(REST[a*3+1]+REST[b*3+1])/2,up=my>c.y-0.005,len=Math.hypot(REST[b*3]-REST[a*3],REST[b*3+1]-REST[a*3+1],REST[b*3+2]-REST[a*3+2]),cnt=Math.max(1,Math.round(len/(up?0.0045:0.01)));
+ RIMS.eyes.forEach(function(r){var c=r.c0;r.e.forEach(function(e){var a=e.a,b=e.b,my=(REST[a*3+1]+REST[b*3+1])/2,up=my>c.y-0.005,len=Math.hypot(REST[b*3]-REST[a*3],REST[b*3+1]-REST[a*3+1],REST[b*3+2]-REST[a*3+2]),cnt=Math.max(1,Math.round(len/(up?0.003:0.008)));
   for(var q=0;q<cnt;q++)list.push([e,(q+R())/cnt,up,r])})});
  var n=list.length,H=L.H=newH(n),dir=new T.Vector3();
  list.forEach(function(it,k){var e=it[0],s=it[1],up=it[2],r=it[3],t=e.t,wts=[0,0,0];for(var q=0;q<3;q++){if(IX[t*3+q]===e.a)wts[q]+=1-s;if(IX[t*3+q]===e.b)wts[q]+=s}
   var sp0=setSP(t,wts[1],wts[2]),rx=sp0.x-r.c0.x,ry=sp0.y-r.c0.y,rl=Math.hypot(rx,ry)||1,fx=Math.abs(rx)/(r.hw||0.2);
-  dir.set(rx/rl*0.55,ry/rl*0.55+(up?0.42:-0.22),0.8).normalize();addStrand(H,k,sp0,dir,(up?0.08:0.035)*S.lash.len*(1-0.55*fx*fx)*(0.75+0.5*R()),R,L.off)});
- finalize(L,n,4);var U=L.U;U.uBend.value=0;U.uSag.value=-5;U.uCurl.value=0.05;U.uCoil.value=0;U.uFreq.value=0;U.uWaveA.value=0;U.uLock.value=0;updHairCols();updHairMat()}
+  dir.set(rx/rl*0.3,ry/rl*0.22+(up?0.38:-0.42),0.9).normalize();addStrand(H,k,sp0,dir,(up?0.13:0.042)*S.lash.len*(1-0.55*fx*fx)*(0.75+0.5*R()),R,L.off)});
+ finalize(L,n,4);var U=L.U;U.uBend.value=0;U.uSag.value=-8;U.uCurl.value=0.05;U.uCoil.value=0;U.uFreq.value=0;U.uWaveA.value=0;U.uLock.value=0;updHairCols();updHairMat()}
 function buildAll(){buildScalp();buildBrow();buildBeard();buildLash()}
 function greyAmt(){return 1-(1-S.hmat.grey)*(1-0.75*sm((S.skin.age-0.35)/0.65))}
 function beardCol(){return S.beard.link?col(cur.h):col(S.beard.c)}
 function updHairCols(){var h=col(cur.h),t=col(cur.t),gr=greyAmt();LY.scalp.U.uHair.value.copy(h);LY.scalp.U.uTip.value.copy(t);
- var bc=S.brow.link?h.clone().multiplyScalar(0.8):col(S.brow.c);LY.brow.U.uHair.value.copy(bc);LY.brow.U.uTip.value.copy(S.brow.link?bc.clone().lerp(t,0.25):bc);
+ var bc=browCol();LY.brow.U.uHair.value.copy(bc);LY.brow.U.uTip.value.copy(bc.clone().lerp(S.brow.link?t:bc.clone().multiplyScalar(1.5),0.35));
  var dc=beardCol();LY.beard.U.uHair.value.copy(dc);LY.beard.U.uTip.value.copy(S.beard.link?t:dc.clone().multiplyScalar(1.3));
  var lc=col(S.lash.c);LY.lash.U.uHair.value.copy(lc);LY.lash.U.uTip.value.copy(lc);
  LY.scalp.U.uGrey.value=gr;LY.beard.U.uGrey.value=gr;LY.brow.U.uGrey.value=gr*0.7;stubColor(LY.scalp,h);SKU.hA.value.copy(h).multiplyScalar(0.85);SKU.hB.value.copy(t);SKU.stub.value=cur.stub;stubColor(LY.beard,dc)}
-function updHairMat(){var m=S.hmat;if(m.soft==null)m.soft=0.7;if(m.shadow==null)m.shadow=1;['scalp','brow','beard','lash'].forEach(function(n){var U=LY[n].U,k=n==='lash'?0.5:1;U.uShine.value=m.shine*k;U.uGloss.value=m.gloss;U.uTrans.value=m.trans;U.uSoft.value=n==='lash'?m.soft*0.4:m.soft});LU.uShD.value=14*m.shadow}
+function updHairMat(){var m=S.hmat;if(m.soft==null)m.soft=0.7;if(m.shadow==null)m.shadow=1;['scalp','brow','beard','lash'].forEach(function(n){var U=LY[n].U,k=n==='lash'?0.12:n==='brow'?0.35:1;U.uShine.value=m.shine*k;U.uGloss.value=m.gloss;U.uTrans.value=m.trans;U.uSoft.value=n==='lash'?m.soft*0.4:m.soft});LU.uShD.value=14*m.shadow}
 function setHairVis(){var v=S.view.hair;tieBand.visible=v&&S.tie.mode!=='none';for(var n in LY){if(LY[n].obj)LY[n].obj.visible=v;if(LY[n].st)LY[n].st.obj.visible=v}}
 var pend={},pendQ=0;function sched(n){pend[n]=1;if(pendQ)return;pendQ=requestAnimationFrame(function(){pendQ=0;var p=pend;pend={};if(p.scalp)buildScalp();if(p.brow)buildBrow();if(p.beard)buildBeard();if(p.lash)buildLash();stats0()})}
 
 /* ================= eyes, mouth interior ================= */
 var eyes=[],eyeR=0.26,scare=0,tps=new T.Vector3(0,3,6),mouseN=new T.Vector2(),sacc=new T.Vector3(),saccT=0;
-function irisTex(hex,lim,seed){var c=document.createElement('canvas');c.width=256;c.height=64;var x=c.getContext('2d'),R=rng(seed),base=col(hex),hsl={};base.getHSL(hsl);
- x.fillStyle='#'+base.getHexString();x.fillRect(0,0,256,64);
- for(var i=0;i<420;i++){var px=R()*256,w=0.6+R()*1.6,l=clamp(hsl.l*(0.55+R()*0.9),0,0.92),a=0.25+R()*0.45;x.strokeStyle='hsla('+(hsl.h*360+(R()-.5)*14)+','+(hsl.s*100*(0.7+R()*0.5))+'%,'+(l*100)+'%,'+a+')';x.lineWidth=w;x.beginPath();x.moveTo(px,0);x.bezierCurveTo(px+(R()-.5)*8,20,px+(R()-.5)*8,44,px+(R()-.5)*6,64);x.stroke()}
- var gc=x.createLinearGradient(0,0,0,64);gc.addColorStop(0,'rgba(30,18,8,0.55)');gc.addColorStop(0.18,'rgba(160,110,40,0.22)');gc.addColorStop(0.35,'rgba(0,0,0,0)');gc.addColorStop(0.72,'rgba(0,0,0,0)');gc.addColorStop(1,'rgba(8,6,5,'+(0.25+0.7*lim)+')');x.fillStyle=gc;x.fillRect(0,0,256,64);
- for(i=0;i<26;i++){x.fillStyle='rgba(0,0,0,'+(0.15+R()*0.2)+')';x.beginPath();x.ellipse(R()*256,14+R()*36,1.5+R()*3,3+R()*5,0,0,6.283);x.fill()}
- var t=new T.CanvasTexture(c);t.anisotropy=4;return t}
+// Eye shader: one eyeball mesh with a bulged cornea. The base layer is the sclera and an iris disc recessed under
+// the cornea (sampled through a refracted view ray, so it shifts with parallax); the clearcoat is the cornea: a
+// glassy, wet, sharp reflection of the room and lights. Pupil, limbal ring, sclera veins, a light caustic on the
+// iris and lid occlusion are procedural; lids also cast real shadows on the eye.
+var EYE_VS='varying vec3 vEP;varying vec3 vEW;';
+var EYE_FS=`varying vec3 vEP;varying vec3 vEW;uniform sampler2D uIris;uniform float uPupil;uniform float uIrisR;uniform float uLimb;uniform vec3 uScl;uniform float uRed;uniform vec3 uCamO;uniform vec3 uKeyO;uniform vec3 uEyeC;uniform float uEyeR;uniform vec3 uSeed;
+float eH(vec3 p){p=fract(p*0.3183099+0.1);p*=17.0;return fract(p.x*p.y*p.z*(p.x+p.y+p.z));}
+float eN(vec3 x){vec3 i=floor(x),f=fract(x);f=f*f*(3.0-2.0*f);return mix(mix(mix(eH(i),eH(i+vec3(1,0,0)),f.x),mix(eH(i+vec3(0,1,0)),eH(i+vec3(1,1,0)),f.x),f.y),mix(mix(eH(i+vec3(0,0,1)),eH(i+vec3(1,0,1)),f.x),mix(eH(i+vec3(0,1,1)),eH(i+vec3(1,1,1)),f.x),f.y),f.z);}
+float eIris=0.0,eCorn=0.0;
+vec3 eyeAlbedo(){
+ vec3 P=vEP,n=normalize(P);float th=acos(clamp(n.z,-1.0,1.0));
+ // sclera: warm off-white, greyer toward the back, fine veins growing toward the corners
+ eCorn=1.0-smoothstep(0.5,0.66,th);vec3 sc=uScl*0.8*mix(1.0,0.82,smoothstep(0.7,1.6,th));
+ float vw=smoothstep(0.62,1.35,th)*(0.35+0.65*smoothstep(0.2,0.9,abs(n.x)));
+ float v1=pow(1.0-abs(eN(n*7.0+uSeed)*2.0-1.0),14.0),v2=pow(1.0-abs(eN(n*19.0+uSeed*1.7)*2.0-1.0),22.0);
+ sc=mix(sc,vec3(0.72,0.2,0.17),clamp((v1*0.55+v2*0.45)*vw*(0.35+1.2*uRed),0.0,0.85));
+ sc=mix(sc,sc*vec3(1.0,0.86,0.84),uRed*0.5*smoothstep(0.55,1.4,th));
+ // iris under the cornea: follow the refracted view ray down to the iris plane
+ float zI=0.86;vec3 V=normalize(uCamO-P);
+ if(P.z>zI){
+  vec3 rv=refract(-V,n,1.0/1.336);float h=P.z-zI;vec2 ip=P.xy+rv.xy*(h/max(-rv.z,0.2));
+  float rr=length(ip)/sin(uIrisR),pu=clamp(0.36*uPupil,0.12,0.8);
+  float tr=clamp((rr-pu)/(1.0-pu),0.0,1.0),ang=atan(ip.y,ip.x);
+  vec3 ic=texture2D(uIris,vec2(ang*0.1591549+0.5,1.0-tr)).rgb;
+  // light enters the cornea and focuses on the far side of the iris
+  vec2 kd=uKeyO.xy;float ca=dot(normalize(ip+1e-4),-normalize(kd+1e-4))*smoothstep(0.0,0.4,length(kd));
+  ic*=1.0+0.55*smoothstep(0.15,1.0,ca)*smoothstep(0.35,0.95,tr)*clamp(uKeyO.z+0.3,0.0,1.0);
+  ic*=mix(1.0,0.5,smoothstep(0.82,1.0,rr)*uLimb);
+  float pupil=1.0-smoothstep(pu-0.015,pu+0.012,rr);
+  ic=mix(ic,vec3(0.012,0.011,0.012),pupil);
+  eIris=1.0-smoothstep(0.97,1.05,rr);
+  // limbus: the iris edge dissolves into a soft grey ring before the sclera
+  sc=mix(sc,sc*0.62,uLimb*0.6*(1.0-smoothstep(1.0,1.18,rr))*smoothstep(0.9,1.0,rr));
+  sc=mix(sc,ic,eIris);
+ }
+ // lid occlusion (the lids sit over the top and corners of the eyeball)
+ vec3 e=(vEW-uEyeC)/uEyeR;float ao=mix(0.42,1.0,smoothstep(0.82,0.3,e.y))*mix(0.78,1.0,smoothstep(0.98,0.55,abs(e.x)))*mix(0.85,1.0,smoothstep(-0.9,-0.45,e.y));
+ return sc*ao;}
+`;
+var EYEGEO=(function(){var gg=new T.SphereGeometry(1,96,64),p=gg.attributes.position,v=new T.Vector3();for(var i=0;i<p.count;i++){v.fromBufferAttribute(p,i);var th=Math.acos(clamp(v.z,-1,1)),b=th<0.62?Math.pow(1-sq(th/0.62),2)*0.075:0;v.multiplyScalar(1+b);p.setXYZ(i,v.x,v.y,v.z)}gg.computeVertexNormals();return gg})();
+function mkEyeMat(seed){var U={uIris:{value:null},uPupil:{value:1},uIrisR:{value:0.51},uLimb:{value:0.6},uScl:{value:new T.Color('#f4f1ec')},uRed:{value:0.1},uCamO:{value:new T.Vector3(0,0,5)},uKeyO:{value:new T.Vector3(0,0,1)},uEyeC:{value:new T.Vector3()},uEyeR:{value:0.26},uSeed:{value:new T.Vector3(seed*3.1,seed*7.7,seed*1.3)}};
+ var m=new T.MeshPhysicalMaterial({color:0xffffff,roughness:0.35,metalness:0,clearcoat:1,clearcoatRoughness:0.02,envMapIntensity:1.15,reflectivity:0.35});
+ m.onBeforeCompile=function(sh){for(var k in U)sh.uniforms[k]=U[k];
+  sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\n'+EYE_VS).replace('#include <begin_vertex>','#include <begin_vertex>\nvEP=position;vEW=(modelMatrix*vec4(position,1.0)).xyz;');
+  sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\n'+EYE_FS).replace('#include <color_fragment>','#include <color_fragment>\ndiffuseColor.rgb*=eyeAlbedo();').replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=mix(0.32,0.62,eIris);').replace('#include <lights_physical_fragment>','#include <lights_physical_fragment>\nmaterial.clearcoat*=mix(0.3,1.0,eCorn);')};
+ m.userData.U=U;return m}
+var _eyeTmp=new T.Vector3(),_eyeK=new T.Vector3(),_eyeInv=new T.Matrix4();
+function eyeUni(e){var U=e.U;e.g.updateMatrixWorld(true);U.uCamO.value.copy(cam.position);e.g.worldToLocal(U.uCamO.value);
+ _eyeK.copy(key.position).sub(key.target.position).normalize();_eyeInv.copy(e.g.matrixWorld).invert();U.uKeyO.value.copy(_eyeK).transformDirection(_eyeInv);
+ e.g.getWorldPosition(U.uEyeC.value);U.uEyeR.value=e.g.scale.x}
+function irisTex(hex,lim,seed){var W=512,Hh=128,c=document.createElement('canvas');c.width=W;c.height=Hh;var x=c.getContext('2d'),R=rng(seed),base=col(hex),hsl={},i;base.getHSL(hsl);
+ var cl=function(l,s2,a,dh){return'hsla('+(hsl.h*360+(dh||0))+','+clamp(hsl.s*s2,0,1)*100+'%,'+clamp(hsl.l*l,0,0.94)*100+'%,'+a+')'};
+ // radial base (top row = pupil edge, bottom = limbus): dark pupillary ruff, bright collarette, mid stroma, darker outer zone
+ var gb=x.createLinearGradient(0,0,0,Hh);gb.addColorStop(0,cl(0.45,1,1));gb.addColorStop(0.07,cl(0.8,1,1));gb.addColorStop(0.18,cl(1.45,0.85,1,8));gb.addColorStop(0.3,cl(1.2,0.95,1));gb.addColorStop(0.62,cl(1.0,1.05,1));gb.addColorStop(0.9,cl(0.78,1.1,1));gb.addColorStop(1,cl(0.55,1.1,1));x.fillStyle=gb;x.fillRect(0,0,W,Hh);
+ // stroma fibres: wavy radial strands, light and dark
+ for(i=0;i<1500;i++){var px=R()*W,y0=R()*Hh*0.25,y1=Hh*(0.55+R()*0.45),lt=R()<0.55,l=lt?1.25+R()*0.6:0.45+R()*0.35;x.strokeStyle=cl(l,0.8+R()*0.4,0.12+R()*0.3,(R()-0.5)*16);x.lineWidth=0.5+R()*1.5;x.beginPath();x.moveTo(px,y0);x.bezierCurveTo(px+(R()-0.5)*10,y0+(y1-y0)*0.35,px+(R()-0.5)*10,y0+(y1-y0)*0.7,px+(R()-0.5)*8,y1);x.stroke()}
+ // crypts (dark lens-shaped pits) around the collarette and mid zone
+ for(i=0;i<60;i++){x.fillStyle='rgba(0,0,0,'+(0.18+R()*0.25)+')';x.beginPath();x.ellipse(R()*W,Hh*(0.2+R()*0.45),2+R()*5,4+R()*9,0,0,6.283);x.fill()}
+ // contraction furrows: faint concentric arcs in the outer zone
+ for(i=0;i<5;i++){var yy=Hh*(0.62+i*0.07+R()*0.03);x.strokeStyle='rgba(0,0,0,'+(0.08+R()*0.08)+')';x.lineWidth=1+R()*1.2;x.beginPath();x.moveTo(0,yy);for(var q=0;q<=W;q+=16)x.lineTo(q,yy+(R()-0.5)*3);x.stroke()}
+ // limbal ring
+ var gl=x.createLinearGradient(0,Hh*0.82,0,Hh);gl.addColorStop(0,'rgba(10,8,6,0)');gl.addColorStop(1,'rgba(10,8,6,'+(0.3+0.65*lim)+')');x.fillStyle=gl;x.fillRect(0,Hh*0.82,W,Hh*0.18);
+ var t=new T.CanvasTexture(c);t.wrapS=T.RepeatWrapping;t.anisotropy=8;return t}
 function mkEye(sx){var g2=new T.Group();g2.position.set(sx*0.5,2.93,0.47);
- var scl=new T.Mesh(new T.SphereGeometry(1,32,24),new T.MeshStandardMaterial({color:0xf4f1ec,roughness:0.15}));g2.add(scl);
- var ir=new T.Mesh(new T.SphereGeometry(1.004,48,16,0,Math.PI*2,0,0.5).rotateX(Math.PI/2),new T.MeshStandardMaterial({color:0xffffff,roughness:0.3}));g2.add(ir);
- var pu=new T.Mesh(new T.SphereGeometry(1.008,24,12,0,Math.PI*2,0,0.22).rotateX(Math.PI/2),new T.MeshBasicMaterial({color:0x050505}));g2.add(pu);
- var hl=new T.Mesh(new T.SphereGeometry(0.09,12,8),new T.MeshBasicMaterial({color:0xffffff}));hl.position.set(0.27,0.3,0.9);g2.add(hl);
- g2.add(new T.Mesh(new T.SphereGeometry(1.03,32,24),new T.MeshPhysicalMaterial({color:0xffffff,roughness:0.03,metalness:0,transparent:true,opacity:0.18,depthWrite:false,clearcoat:1,envMapIntensity:1.6})));scene.add(g2);
- return{g:g2,ir:ir,pu:pu,scl:scl,k:1,sx:sx}}
-function updEyeMats(){var e=S.eyes;eyes.forEach(function(E,i){var c=i===1&&e.het?e.c2:e.c;if(E.ir.material.map)E.ir.material.map.dispose();E.ir.material.map=irisTex(c,e.limbal,17+i*7);E.ir.material.needsUpdate=true;E.scl.material.color.set(e.sclera).lerp(new T.Color('#e8a0a0'),e.red*0.5)})}
+ var mat=mkEyeMat(sx>0?1:2),ball=new T.Mesh(EYEGEO,mat);ball.receiveShadow=true;g2.add(ball);scene.add(g2);
+ return{g:g2,ball:ball,U:mat.userData.U,k:1,sx:sx}}
+function updEyeMats(){var e=S.eyes;eyes.forEach(function(E,i){var c=i===1&&e.het?e.c2:e.c,U=E.U;if(U.uIris.value)U.uIris.value.dispose();U.uIris.value=irisTex(c,e.limbal,17+i*7);U.uLimb.value=e.limbal;U.uScl.value.set(e.sclera);U.uRed.value=e.red})}
 var eyeYaw=0,eyePit=0;
 function updEyes(dt){var md=S.eyes.gaze,tp;
  if(md==='fwd')tp=tps.set(0,2.95,12);else if(md==='cursor'){rc.setFromCamera(mouseN,cam);tp=rc.ray.at(7,new T.Vector3())}else if(md==='cam')tp=cam.position;else tp=(clip.visible&&!cm&&mode==='clip')?clip.position:cam.position;
@@ -986,7 +1062,7 @@ function updEyes(dt){var md=S.eyes.gaze,tp;
  var ce=eyes.length>1?eyes[0].g.position.clone().add(eyes[1].g.position).multiplyScalar(0.5):new T.Vector3(0,2.93,0.47),dv=tps.clone().add(sacc).sub(ce),hz=Math.hypot(dv.x,dv.z),yaw=Math.atan2(dv.x,dv.z),pit=Math.atan2(dv.y,Math.max(hz,1e-4)),Lm=(S.eyes.lim==null?28:S.eyes.lim)*Math.PI/180,out=sm((Math.abs(yaw)-1.2)/0.6);
  yaw*=1-out;pit*=1-out;var yc=Lm*Math.tanh(yaw/Lm),pu=Lm*0.65,pd=Lm*0.85,pc=pit>0?pu*Math.tanh(pit/pu):pd*Math.tanh(pit/pd),kk=1-Math.exp(-dt*(5+20*(S.eyes.trk==null?0.5:S.eyes.trk)));
  eyeYaw+=(yc-eyeYaw)*kk;eyePit+=(pc-eyePit)*kk;var dd=Math.max(0.6,dv.length());
- eyes.forEach(function(e){var vg=clamp(Math.atan2(e.g.position.x-ce.x,dd),-0.12,0.12);e.g.rotation.set(-eyePit,eyeYaw-vg,0,'YXZ');var R=eyeR*e.k*S.eyes.size;e.g.scale.set(R,R*(1-scare*0.25),R);var s=(1+scare*0.3)*S.eyes.pupil;e.pu.scale.set(s,s,1)})}
+ eyes.forEach(function(e){var vg=clamp(Math.atan2(e.g.position.x-ce.x,dd),-0.12,0.12);e.g.rotation.set(-eyePit,eyeYaw-vg,0,'YXZ');var R=eyeR*e.k*S.eyes.size;e.g.scale.set(R,R*(1-scare*0.25),R);e.U.uPupil.value=(1+scare*0.3)*S.eyes.pupil;eyeUni(e)})}
 var mouthG=new T.Group();scene.add(mouthG);
 var cav=new T.Mesh(new T.SphereGeometry(1,24,16),new T.MeshStandardMaterial({color:0x2a0a0a,roughness:0.6}));cav.scale.set(0.36,0.2,0.45);cav.position.set(0,1.8,0.5);mouthG.add(cav);
 var tMat=new T.MeshStandardMaterial({color:0xece6d8,roughness:0.25});
@@ -1017,8 +1093,8 @@ var STOPS=[[0,[0.98,0.86,0.78]],[0.2,[0.93,0.76,0.64]],[0.4,[0.84,0.62,0.48]],[0
 function skinRGB(m,r,out){var i=0;while(i<STOPS.length-2&&m>STOPS[i+1][0])i++;var a=STOPS[i],b=STOPS[i+1],t=clamp((m-a[0])/(b[0]-a[0]),0,1),c=[0,1,2].map(function(k){return a[1][k]+(b[1][k]-a[1][k])*t}),u=r-0.5;
  c[0]+=u*0.07*(1-m*0.5);c[1]+=-u*0.025;c[2]+=u*0.035;(out||(out=new T.Color())).setRGB(clamp(c[0],0,1),clamp(c[1],0,1),clamp(c[2],0,1));return out}
 function skinCol(){var c=S.skin.custom?col(S.skin.custom):skinRGB(S.skin.mel,S.skin.red);var a=S.skin.age;if(a>0){var hs={};c.getHSL(hs);c.setHSL(hs.h,hs.s*(1-0.25*a),hs.l*(1-0.05*a))}return c}
-var FLUSH=new T.Color('#c4554f'),BLOT=new T.Color('#8a5a44'),WARM=new T.Color('#d9a273'),PINK=new T.Color('#d9707a'),LIP=new T.Color('#b0524c'),DK=new T.Color('#3b2622'),LNR=new T.Color('#0c0908');
-function paintSkin(){paintDirty=false;var cs=skinCol(),ch=col(cur.h),bc=beardCol(),mk=S.makeup,bl=col(mk.blushC),lp=col(mk.lipC),sh=col(mk.shadowC),ca=g.attributes.color,ra=g.attributes.aRough.array,t=new T.Color(),cfg=BEARD[S.beard.style]||BEARD.none;
+var LIPC=new T.Color(),LIPK=new T.Color(0.92,0.66,0.64),LSH=new T.Color('#2a1a14'),CARC=new T.Color('#c27a78'),BROWW=new T.Color('#3b2a1d'),FLUSH=new T.Color('#c4554f'),BLOT=new T.Color('#8a5a44'),WARM=new T.Color('#d9a273'),PINK=new T.Color('#d9707a'),LIP=new T.Color('#b0524c'),DK=new T.Color('#3b2622'),LNR=new T.Color('#0c0908');
+function paintSkin(){paintDirty=false;var cs=skinCol(),ch=col(cur.h),bc=beardCol(),mk=S.makeup,bl=col(mk.blushC),lp=col(mk.lipC),sh=col(mk.shadowC),ca=g.attributes.color,bcol=browCol(),crn=RIMS.eyes.map(function(r){var b=r.v[0];r.v.forEach(function(v){if(Math.abs(REST[v*3])<Math.abs(REST[b*3]))b=v});return[REST[b*3],REST[b*3+1],REST[b*3+2]]}),ra=g.attributes.aRough.array,t=new T.Color(),cfg=BEARD[S.beard.style]||BEARD.none;
  for(var i=0;i<NV;i++){var x=REST[i*3],y=REST[i*3+1],z=REST[i*3+2],ax=Math.abs(x);
   var cov=sm((y-yLow(x,y,z)+0.05)/0.5)*sm((earD(x,y,z)-0.45)/0.3)*(y>1.9?1:0);
   t.copy(cs);
@@ -1028,15 +1104,15 @@ function paintSkin(){paintDirty=false;var cs=skinCol(),ch=col(cur.h),bc=beardCol
       if(flu>0){var fzm=1.1*Math.exp(-(x*x/0.06+sq(y-2.45)/0.06+sq(z-1.3)/0.12))+0.75*Math.exp(-(sq(ax-0.75)/0.07+sq(y-2.4)/0.07))*(z>0.25?1:0)+0.9*Math.exp(-(sq(ax-1.32)/0.03+sq(y-2.78)/0.18+sq(z+0.8)/0.12))+0.45*Math.exp(-(x*x/0.12+sq(y-1.55)/0.04))*(z>0.7?1:0)+0.35*Math.exp(-(sq(ax-0.38)/0.03+sq(y-2.82)/0.004))*(z>0.6?1:0);
        t.lerp(FLUSH,Math.min(0.5,flu*0.3*fzm));t.lerp(WARM,flu*0.12*Math.exp(-(x*x/0.5+sq(y-3.65)/0.12))*(z>0.3?1:0))}
   t.lerp(PINK,0.22*Math.exp(-(sq(ax-0.85)+sq(y-2.3)+sq(z-0.7))/0.22)*(z>0.2?1:0));
-  t.lerp(LIP,0.55*Math.exp(-(sq(y-1.85)/0.012+x*x/0.3))*(z>0.9?1:0));
-  t.lerp(ch,(S.brow.on?0.22:0.7)*((ax>0.15&&ax<0.88&&z>0.7)?sm(1-Math.abs(y-3.2)/0.1):0));
+  var lm=LIPM?LIPM[i]:0;if(lm>0){LIPC.copy(cs).multiply(LIPK).lerp(LIP,0.15);if(LIPS[i]>0)LIPC.multiplyScalar(0.88);t.lerp(LIPC,lm*0.7)}if(LIPB&&LIPB[i]>0.01)t.multiplyScalar(1+0.07*LIPB[i]);if(LIPA&&LIPA[i]>0.01)t.multiplyScalar(1-0.4*LIPA[i]);
+  var bw2=browW(x,y,z,1.3);if(bw2>0)t.lerp(bcol,(S.brow.on?0.2:0.7)*Math.pow(bw2,0.8));
   t.multiplyScalar(1-0.1*Math.exp(-(sq(ax-0.5)/0.1+sq(y-2.78)/0.006))*(z>0.5?1:0));
   if(S.skin.under>0)t.lerp(DK,S.skin.under*0.4*Math.exp(-(sq(ax-0.5)/0.05+sq(y-2.74)/0.006))*(z>0.4?1:0));
   var fm=fullM(x,y,z);if(fm>0){var bm=cfg[1]?beardMask(cfg[1],x,y,z):0;t.lerp(bc,Math.min(0.75,fm*0.55*S.beard.stub+bm*0.35))}
   if(mk.blush>0)t.lerp(bl,mk.blush*0.45*Math.exp(-(sq(ax-0.78)/0.06+sq(y-2.4)/0.05))*(z>0.2?1:0));
   if(mk.shadow>0)t.lerp(sh,mk.shadow*0.8*Math.exp(-(sq(ax-0.5)/0.07+sq(y-3.05)/0.005))*(z>0.4&&y>2.96?1:0));
-  if(mk.liner>0)t.lerp(LNR,mk.liner*LINER[i]);
-  var lipT=sm((0.52-ax)/0.2)*Math.exp(-sq(y-1.85)/0.007)*sm((z-0.72)/0.12);
+  if(LINER&&LINER[i]>0)t.lerp(LSH,0.28*LINER[i]);if(mk.liner>0)t.lerp(LNR,mk.liner*LINER[i]);for(var ci=0;ci<crn.length;ci++){var cd=Math.hypot(x-crn[ci][0],y-crn[ci][1],z-crn[ci][2]);if(cd<0.06)t.lerp(CARC,0.55*sm((0.055-cd)/0.04))}
+  var lipT=LIPM?LIPM[i]:sm((0.52-ax)/0.2)*Math.exp(-sq(y-1.85)/0.007)*sm((z-0.72)/0.12);
   if(mk.lip>0)t.lerp(lp,mk.lip*0.92*lipT);
   ra[i]=lipT*(0.04+mk.gloss*0.4);ca.setXYZ(i,t.r,t.g,t.b)}
  ca.needsUpdate=true;g.attributes.aRough.needsUpdate=true}
