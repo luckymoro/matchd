@@ -443,20 +443,7 @@ vec3 earFix(vec3 p,float t){
  if(ax<0.85)return p;
  float w=smoothstep(0.01,0.12,t)*smoothstep(1.0,0.5,e2);
  if(uEar<0.5){
-  // tucked: hair that would cross the ear sweeps behind it (and stays behind below it, exposing the neck);
-  // temple/sideburn strands go in front; everything near the flap lies flat so it slips under its rim
-  float yC=2.78,hw=0.38*(p.y>yC?sqrt(max(0.0,1.0-(p.y-yC)*(p.y-yC)/0.36)):1.0);
-  float wy=p.y>yC?smoothstep(3.42,3.12,p.y):smoothstep(1.35,1.85,p.y);
-  bool fr=aRoot.z>-0.42&&aRoot.y<2.95;
-  float zb=-0.8-hw*1.1,zf=-0.8+hw*1.1;
-  float pin=smoothstep(0.01,0.12,t);
-  if(ax>0.85&&p.z<zf+0.1&&p.z>zb){
-   float ws=pin*wy*smoothstep(zf+0.1,zf-0.04,p.z);
-   p.z=mix(p.z,fr?zf+0.02:zb,ws);
-   w=max(w,ws*0.8);
-  }
-  vec3 qq=(p-uHC)/uHR;float ll=length(qq);vec3 uu=qq/ll;float sr=shellR(uu)+0.01;
-  if(ll>sr)p=mix(p,uHC+uHR*uu*sr,w);
+  return p;
  }else{
   // covering: every hair layer is lifted by the ear's protrusion (keeps the layering, so no sparse sheet),
   // easing in above the ear and draping out slowly below it
@@ -535,6 +522,18 @@ uniform float uShine;uniform float uGloss;uniform float uTrans;uniform float uGr
 uniform sampler2D uShMap;uniform mat4 uShM;uniform float uShOn;uniform float uShTx;uniform float uShRng;uniform float uShD;
 varying vec3 vT;varying vec3 vN;varying vec3 vV;varying float vP;varying float vVar;varying float vS;varying vec3 vW;
 #include <packing>
+// Barber's ear outline (uEar 0): hair inside a feathered arch around the ear, and below it between the
+// sideburn and the back hairline, is cut away, like the clean taper around the ear of a real haircut.
+uniform float uEar;
+bool earCut(){
+ if(uEar<-0.5||uEar>0.5)return false;
+ float ax=abs(vW.x);if(ax<0.6)return false;
+ float f=(fract(vVar*31.7)-0.5)*0.09;
+ vec2 q=vec2((vW.y-2.76)/0.64,(vW.z+0.8)/0.47);
+ if(dot(q,q)<1.0+f*2.0)return true;
+ float zb=-1.25-max(0.0,2.76-vW.y)*0.45+f;
+ return vW.y<2.76&&vW.z>zb&&vW.z<-0.3+f&&(vW.y<2.3+f||vW.z<-0.33);
+}
 float kk(vec3 T,vec3 H,float e){float d=dot(T,H);float s=sqrt(max(0.0,1.0-d*d));return pow(s,e)*smoothstep(-1.0,0.0,d);}
 // Deep-opacity style self-shadow from the key light's shadow map: hair is translucent, so light fades
 // with the thickness of hair in front of the fragment instead of switching off at the first strand.
@@ -570,6 +569,7 @@ vec3 shade(vec3 L,vec3 lc,vec3 T,vec3 N,vec3 V,vec3 base,float sh){
  return (diff*lc+spec)*sh+trans*mix(0.25,1.0,sh);
 }
 void main(){
+ if(earCut())discard;
  vec3 T=normalize(vT);vec3 N=normalize(vN);vec3 V=normalize(vV);
  vec3 base=mix(uHair,uTip,smoothstep(0.15,1.0,vP)*0.7);
  base=mix(base,uGreyC,step(fract(vVar*53.17),uGrey));
@@ -591,7 +591,7 @@ void main(){
  #include <tonemapping_fragment>
  #include <encodings_fragment>
 }`;
-var HAIR_DFS='#include <packing>\nvoid main(){gl_FragColor=packDepthToRGBA(gl_FragCoord.z);}';
+var HAIR_DFS='#include <packing>\nvarying vec3 vW;varying float vVar;\n'+"\n// Barber's ear outline (uEar 0): hair inside a feathered arch around the ear, and below it between the\n// sideburn and the back hairline, is cut away, like the clean taper around the ear of a real haircut.\nuniform float uEar;\nbool earCut(){\n if(uEar<-0.5||uEar>0.5)return false;\n float ax=abs(vW.x);if(ax<0.6)return false;\n float f=(fract(vVar*31.7)-0.5)*0.09;\n vec2 q=vec2((vW.y-2.76)/0.64,(vW.z+0.8)/0.47);\n if(dot(q,q)<1.0+f*2.0)return true;\n float zb=-1.25-max(0.0,2.76-vW.y)*0.45+f;\n return vW.y<2.76&&vW.z>zb&&vW.z<-0.3+f&&(vW.y<2.3+f||vW.z<-0.33);\n}\n"+'void main(){if(earCut())discard;gl_FragColor=packDepthToRGBA(gl_FragCoord.z);}';
 var LU={uShMap:{value:null},uShM:{value:key.shadow.matrix},uShOn:{value:0},uShTx:{value:1/2048},uShRng:{value:20},uShD:{value:14},uL1:{value:new T.Vector3(0,0,1)},uL2:{value:new T.Vector3(0,0,1)},uC1:{value:new T.Vector3(1.25,1.18,1.08)},uC2:{value:new T.Vector3(0.22,0.28,0.38)},uAmb:{value:new T.Vector3(0.42,0.4,0.38)}};
 var SHW=128,SHH=64,SHD=new Uint8Array(SHW*SHH),SHF=new Float32Array(SHW*SHH),SHT=new Float32Array(SHW*SHH);
 var shellTex=new T.DataTexture(SHD,SHW,SHH,T.LuminanceFormat,T.UnsignedByteType);shellTex.wrapS=T.RepeatWrapping;shellTex.wrapT=T.ClampToEdgeWrapping;shellTex.magFilter=shellTex.minFilter=T.LinearFilter;shellTex.generateMipmaps=false;
