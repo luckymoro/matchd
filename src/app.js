@@ -27,7 +27,7 @@ function clamp(x,a,b){return Math.max(a,Math.min(b,x))}
 /* ================= state ================= */
 var S={
  shape:{},expr:{},blend:{x:0,y:0},
- skin:{mel:0.58,red:0.5,custom:'',bump:0.6,oil:0.5,sss:0.7,trn:0.8,rough:0.58,freck:0.2,age:0,under:0.25},
+ skin:{mel:0.58,red:0.5,custom:'',bump:0.6,oil:0.5,sss:0.7,trn:0.8,rough:0.58,freck:0.2,age:0,under:0.25,flush:0.45,blotch:0.4,micro:0.8,fuzz:0.35},
  makeup:{lip:0,lipC:'#a8323a',gloss:0,blush:0,blushC:'#d9667a',shadow:0,shadowC:'#6b4a7a',liner:0},
  eyes:{c:'#5b3a24',c2:'#3d6b4f',het:false,size:1,pupil:1,limbal:0.6,sclera:'#f4f1ec',red:0.1,gaze:'auto'},
  hair:{},
@@ -42,7 +42,7 @@ var S={
  tie:{mode:'none',sel:'top',u:[0,0.62,-0.78],tight:0.75,spread:0.4,bunR:0.16,band:'#151515'},
  barb:{tool:'clipper',sym:false,lever:0,flick:0,slen:0.6,thin:0.35,lw:0.035,straight:false},
  ear:{margin:0.08,sb:2.4,back:2.35,taper:0.85,slope:0.9,guides:false},
- light:{rig:'studio',rot:0,int:1,expo:1,tone:'linear',bg:'rig',bgc:'#202226'},
+ light:{rig:'cinema',rot:0,int:1,expo:0.9,tone:'aces',bg:'rig',bgc:'#202226'},
  view:{mode:'lit',focal:42,hair:true,turn:false,guides:false}
 };
 var BR={t:'draw',r:0.22,s:0.5,sym:true,inv:false};
@@ -201,7 +201,7 @@ function setupMesh(lv){LEVEL=lv;var pos=BASE.v,idx=BASE.f;for(var i=0;i<lv;i++){
  ng.computeVertexNormals();ng.computeBoundingSphere();
  var old=g;g=ng;P=g.attributes.position;N=g.attributes.normal;if(skin){skin.geometry=g;wire.geometry=g}if(old)old.dispose();
  ng.setAttribute('aFade',new T.BufferAttribute(new Float32Array(NV).fill(-1),1));
- ng.setAttribute('aShort',new T.BufferAttribute(new Float32Array(NV*2),2));g.setAttribute('aGv',new T.BufferAttribute(new Float32Array(NV),1));
+ ng.setAttribute('aShort',new T.BufferAttribute(new Float32Array(NV*2),2));g.setAttribute('aGv',new T.BufferAttribute(new Float32Array(NV),1));g.setAttribute('aCurv',new T.BufferAttribute(new Float32Array(NV),1));
  SD=new Float32Array(NV*3);SHC=new Float32Array(NV);SHL=new Float32Array(NV);SHW2=new Float32Array(NV*2);VA=new Float32Array(NV);shortDirty=true;
  for(var t0=0;t0<NT;t0++){var A0=IX[t0*3]*3,B0=IX[t0*3+1]*3,C0=IX[t0*3+2]*3,e1x=REST[B0]-REST[A0],e1y=REST[B0+1]-REST[A0+1],e1z=REST[B0+2]-REST[A0+2],e2x=REST[C0]-REST[A0],e2y=REST[C0+1]-REST[A0+1],e2z=REST[C0+2]-REST[A0+2],ar=Math.hypot(e1y*e2z-e1z*e2y,e1z*e2x-e1x*e2z,e1x*e2y-e1y*e2x)/6;VA[A0/3]+=ar;VA[B0/3]+=ar;VA[C0/3]+=ar}
  // distance to the ear (protruding flap) so the hairline can trace its outline
@@ -263,6 +263,11 @@ function mkSkinTex(){var Sz=512,R=rng(77),n1=vn(Sz,8,R),n2=vn(Sz,32,R),n3=vn(Sz,
  for(k=0;k<900;k++){var fx2=Math.floor(R()*Sz),fy2=Math.floor(R()*Sz),fr=0.9+R()*1.8,fa=0.35+R()*0.65;for(oy=-5;oy<=5;oy++)for(ox=-5;ox<=5;ox++){var d2=ox*ox+oy*oy;if(d2>fr*fr*4)continue;var x3=(fx2+ox+Sz)%Sz,y3=(fy2+oy+Sz)%Sz,v2=fa*Math.exp(-d2/(fr*fr));if(v2>frk[y3*Sz+x3])frk[y3*Sz+x3]=v2}}
  for(var y=0;y<Sz;y++)for(var x=0;x<Sz;x++){var i=(y*Sz+x)*4,h=0.35*n3(x,y)+0.25*n4(x,y)+0.25*n2(x,y)+0.15*n1(x,y);h=Math.max(0,Math.min(1,h*0.7+0.3-pore[y*Sz+x]*0.45));hi.data[i]=hi.data[i+2]=h*255;hi.data[i+1]=Math.min(1,frk[y*Sz+x])*255;hi.data[i+3]=255;
   var red=(n1(x,y)-0.5)*0.08+(n5(x,y)-0.5)*0.04,fn=(n3(x,y)-0.5)*0.08;di.data[i]=Math.min(255,(1+red+fn)*204);di.data[i+1]=Math.min(255,(1-red*0.8+fn)*204);di.data[i+2]=Math.min(255,(1-red*0.6+fn)*204);di.data[i+3]=255}
+ // B = micro furrows: short criss-crossing grooves at two dominant angles, like the fine skin texture between pores
+ var mc=document.createElement('canvas');mc.width=mc.height=Sz;var mx=mc.getContext('2d');mx.fillStyle='#fff';mx.fillRect(0,0,Sz,Sz);mx.lineCap='round';
+ for(k=0;k<2400;k++){var ma=(R()<0.5?0.7:-0.75)+(R()-0.5)*0.5,ml=5+R()*16,mcx=R()*Sz,mcy=R()*Sz,mdx=Math.cos(ma)*ml/2,mdy=Math.sin(ma)*ml/2;mx.strokeStyle='rgba(0,0,0,'+(0.1+R()*0.28).toFixed(3)+')';mx.lineWidth=0.6+R()*0.9;
+  for(var tx9=-1;tx9<=1;tx9++)for(var ty9=-1;ty9<=1;ty9++){mx.beginPath();mx.moveTo(mcx-mdx+tx9*Sz,mcy-mdy+ty9*Sz);mx.lineTo(mcx+mdx+tx9*Sz,mcy+mdy+ty9*Sz);mx.stroke()}}
+ var md=mx.getImageData(0,0,Sz,Sz).data;for(k=0;k<Sz*Sz*4;k+=4)hi.data[k+2]=md[k];
  hx.putImageData(hi,0,0);dx2.putImageData(di,0,0);
  function txr(c){var q=new T.CanvasTexture(c);q.wrapS=q.wrapT=T.RepeatWrapping;q.anisotropy=8;return q}return{h:txr(hc),d:txr(dc)}}
 // Tileable short-hair texture built with the Hair Texture Generator approach: R = short stubble strokes,
@@ -277,22 +282,34 @@ function mkHairTex(){var W=512,R=rng(4242),out=document.createElement('canvas');
  var sh=strokes(7000,4,9,1.6),lg=strokes(3200,16,34,1.6);
  for(var i=0;i<W*W*4;i+=4){od.data[i]=sh[i];od.data[i+1]=dots[i];od.data[i+2]=lg[i];od.data[i+3]=255}
  ox.putImageData(od,0,0);var t=new T.CanvasTexture(out);t.wrapS=t.wrapT=T.RepeatWrapping;t.anisotropy=8;return t}
-var SKT=mkSkinTex(),SKU={bump:{value:0.6},oil:{value:0.5},sss:{value:0.7},trn:{value:0.8},age:{value:0},frk:{value:0.2},ht:{value:mkHairTex()},hA:{value:new T.Color()},hB:{value:new T.Color()},stub:{value:0.5},fadeN:{value:1},fadeShow:{value:0}};
+// Pre-integrated subsurface scattering (Penner 2011): the d'Eon/Jimenez six-Gaussian skin profile integrated
+// around a ring of radius r. u = N.L remapped to 0..1, v = surface curvature (v 1 = 2 mm radius).
+function mkSssLut(){var W=96,Hh=64,d=new Uint8Array(W*Hh*4),V=[0.0064,0.0484,0.187,0.567,1.99,7.41],WR=[0.233,0.1,0.118,0.113,0.358,0.078],WG=[0.455,0.336,0.198,0.007,0.004,0],WB=[0.649,0.344,0,0.007,0,0],NS=320,X=new Float32Array(NS),J=new Float32Array(NS),RR=new Float32Array(NS),RG=new Float32Array(NS),RB=new Float32Array(NS),s,y,x,k;
+ for(s=0;s<NS;s++){var u=(s+0.5)/NS*2-1;X[s]=Math.PI*u*u*u;J[s]=3*Math.PI*u*u*2/NS}
+ for(y=0;y<Hh;y++){var r=1/(((y+0.5)/Hh)*0.5);
+  for(s=0;s<NS;s++){var dd=2*r*Math.abs(Math.sin(X[s]/2)),a=0,b=0,c=0;for(k=0;k<6;k++){var gk=Math.exp(-dd*dd/(2*V[k]))/(2*Math.PI*V[k]);a+=WR[k]*gk;b+=WG[k]*gk;c+=WB[k]*gk}RR[s]=a*J[s];RG[s]=b*J[s];RB[s]=c*J[s]}
+  for(x=0;x<W;x++){var th=Math.acos((x+0.5)/W*2-1),nr=0,ng=0,nb=0,dr=0,dg=0,db=0;
+   for(s=0;s<NS;s++){var cl=Math.max(0,Math.cos(th+X[s]));nr+=cl*RR[s];ng+=cl*RG[s];nb+=cl*RB[s];dr+=RR[s];dg+=RG[s];db+=RB[s]}
+   var o=(y*W+x)*4;d[o]=clamp(nr/dr,0,1)*255;d[o+1]=clamp(ng/dg,0,1)*255;d[o+2]=clamp(nb/db,0,1)*255;d[o+3]=255}}
+ var t=new T.DataTexture(d,W,Hh,T.RGBAFormat,T.UnsignedByteType);t.magFilter=t.minFilter=T.LinearFilter;t.wrapS=t.wrapT=T.ClampToEdgeWrapping;t.generateMipmaps=false;t.needsUpdate=true;return t}
+var SKT=mkSkinTex(),SKU={bump:{value:0.6},oil:{value:0.5},sss:{value:0.7},trn:{value:0.8},age:{value:0},frk:{value:0.2},micro:{value:0.8},fuzz:{value:0.35},lut:{value:mkSssLut()},ht:{value:mkHairTex()},hA:{value:new T.Color()},hB:{value:new T.Color()},stub:{value:0.5},fadeN:{value:1},fadeShow:{value:0}};
 var MAPSHOW={value:0};
-var skinMat=new T.MeshPhysicalMaterial({vertexColors:true,roughness:0.58,metalness:0,clearcoat:0.14,clearcoatRoughness:0.4,side:T.DoubleSide,envMapIntensity:0.85});
-skinMat.onBeforeCompile=function(sh){sh.uniforms.uH={value:SKT.h};sh.uniforms.uD={value:SKT.d};sh.uniforms.uBump=SKU.bump;sh.uniforms.uOil=SKU.oil;sh.uniforms.uSSS=SKU.sss;sh.uniforms.uTrn=SKU.trn;sh.uniforms.uAge=SKU.age;sh.uniforms.uFrk=SKU.frk;sh.uniforms.uHT=SKU.ht;sh.uniforms.uHairA=SKU.hA;sh.uniforms.uHairB=SKU.hB;sh.uniforms.uStub=SKU.stub;sh.uniforms.uFadeN=SKU.fadeN;sh.uniforms.uFadeShow=SKU.fadeShow;sh.uniforms.uMapShow=MAPSHOW;
- sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nattribute vec3 aRest;attribute float aRough;attribute vec2 aShort;varying vec2 vShort;attribute float aFade;varying float vFade;attribute float aGv;varying float vGv;varying vec3 vOP;varying vec3 vON;varying float vThin;varying float vRough;').replace('#include <begin_vertex>','#include <begin_vertex>\nvOP=aRest;vON=normal;vRough=aRough;vShort=aShort;vFade=aFade;vGv=aGv;float ea=smoothstep(0.95,1.35,abs(aRest.x))*step(2.2,aRest.y)*step(aRest.y,3.4);float nz=exp(-(aRest.x*aRest.x/0.12+(aRest.y-2.45)*(aRest.y-2.45)/0.15))*step(0.9,aRest.z);vThin=clamp(ea+nz*0.8,0.0,1.0);');
+var skinMat=new T.MeshPhysicalMaterial({vertexColors:true,roughness:0.58,metalness:0,reflectivity:0.42,clearcoat:0.06,clearcoatRoughness:0.4,side:T.DoubleSide,envMapIntensity:0.85});
+skinMat.onBeforeCompile=function(sh){sh.uniforms.uH={value:SKT.h};sh.uniforms.uD={value:SKT.d};sh.uniforms.uBump=SKU.bump;sh.uniforms.uOil=SKU.oil;sh.uniforms.uSSS=SKU.sss;sh.uniforms.uTrn=SKU.trn;sh.uniforms.uAge=SKU.age;sh.uniforms.uFrk=SKU.frk;sh.uniforms.uHT=SKU.ht;sh.uniforms.uHairA=SKU.hA;sh.uniforms.uHairB=SKU.hB;sh.uniforms.uStub=SKU.stub;sh.uniforms.uFadeN=SKU.fadeN;sh.uniforms.uFadeShow=SKU.fadeShow;sh.uniforms.uMapShow=MAPSHOW;sh.uniforms.uMicro=SKU.micro;sh.uniforms.uFuzz=SKU.fuzz;sh.uniforms.uLut=SKU.lut;sh.uniforms.uKeyV=LU.uL1;
+ sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nattribute vec3 aRest;attribute float aRough;attribute vec2 aShort;varying vec2 vShort;attribute float aFade;varying float vFade;attribute float aGv;varying float vGv;attribute float aCurv;varying float vCurv;varying vec3 vOP;varying vec3 vON;varying float vThin;varying float vRough;').replace('#include <begin_vertex>','#include <begin_vertex>\nvOP=aRest;vON=normal;vRough=aRough;vShort=aShort;vFade=aFade;vGv=aGv;vCurv=aCurv;float ea=smoothstep(0.95,1.35,abs(aRest.x))*step(2.2,aRest.y)*step(aRest.y,3.4);float nz=exp(-(aRest.x*aRest.x/0.12+(aRest.y-2.45)*(aRest.y-2.45)/0.15))*step(0.9,aRest.z);vThin=clamp(ea+nz*0.8,0.0,1.0);');
  var DIRECT_OLD='reflectedLight.directDiffuse += ( 1.0 - clearcoatDHR ) * irradiance * BRDF_Diffuse_Lambert( material.diffuseColor );';
  var DIRECT_NEW=`{
-  float nlS=dot(geometry.normal,directLight.direction);
-  vec3 wdS=vec3(0.45,0.3,0.22)*uSSS;
-  vec3 dwS=clamp((vec3(nlS)+wdS)/(1.0+wdS),0.0,1.0);
-  vec3 sssD=mix(vec3(dotNL),dwS*dwS*(2.0-dwS),clamp(uSSS*0.85,0.0,1.0));
-  vec3 sssIrr=sssD*directLight.color;
+  // red diffuses furthest under the skin, so it sees the smooth normal; blue keeps the pore-level detail
+  float cS=clamp(vCurv*(0.5+uSSS)/27.5,0.0,1.0);
+  vec3 Ls=directLight.direction;
+  float nB=dot(geometry.normal,Ls),nR=dot(gSmN,Ls),nG=mix(nR,nB,0.45);
+  vec3 dS=vec3(sssLut(nR,cS).r,sssLut(nG,cS).g,sssLut(nB,cS).b);
+  dS=mix(vec3(saturate(nB)),dS,clamp(uSSS*1.25,0.0,1.0));
+  vec3 sssIrr=dS*directLight.color;
   #ifndef PHYSICALLY_CORRECT_LIGHTS
   sssIrr*=PI;
   #endif
-  reflectedLight.directDiffuse += ( 1.0 - clearcoatDHR ) * sssIrr * BRDF_Diffuse_Lambert( material.diffuseColor );
+  reflectedLight.directDiffuse += ( 1.0 - clearcoatDHR ) * sssIrr * BRDF_Diffuse_Lambert( material.diffuseColor )*mix(0.86,1.0,gCav);
   vec3 tlS=normalize(directLight.direction+geometry.normal*0.35);
   float trS=pow(clamp(dot(geometry.viewDir,-tlS),0.0,1.0),3.0);
   vec3 trI=directLight.color*trS*vThin*uTrn*2.2;
@@ -301,12 +318,20 @@ skinMat.onBeforeCompile=function(sh){sh.uniforms.uH={value:SKT.h};sh.uniforms.uD
   #endif
   reflectedLight.directDiffuse += trI*vec3(1.0,0.34,0.18)*material.diffuseColor;
  }`;
- var chunkS=T.ShaderChunk.lights_physical_pars_fragment;if(chunkS.indexOf(DIRECT_OLD)<0)console.warn('SSS anchor missing');chunkS=chunkS.replace(DIRECT_OLD,DIRECT_NEW);
- sh.fragmentShader=sh.fragmentShader.replace('#include <lights_physical_pars_fragment>',chunkS);
+    var SPEC_OLD='reflectedLight.directSpecular += ( 1.0 - clearcoatDHR ) * irradiance * BRDF_Specular_GGX( directLight, geometry.viewDir, geometry.normal, material.specularColor, material.specularRoughness);';
+    // dual-lobe skin specular: tight oily sheen + broad lobe, occluded inside pores and furrows
+    var SPEC_NEW='reflectedLight.directSpecular += ( 1.0 - clearcoatDHR ) * irradiance * mix(0.45,1.0,gCav) * (0.85*BRDF_Specular_GGX( directLight, geometry.viewDir, geometry.normal, material.specularColor, clamp(material.specularRoughness*0.75,0.08,1.0)) + 0.15*BRDF_Specular_GGX( directLight, geometry.viewDir, geometry.normal, material.specularColor, min(material.specularRoughness*1.35,1.0)));';
+ var chunkS=T.ShaderChunk.lights_physical_pars_fragment;if(chunkS.indexOf(SPEC_OLD)<0)console.warn('skin specular anchor missing');chunkS=chunkS.replace(SPEC_OLD,SPEC_NEW);if(chunkS.indexOf(DIRECT_OLD)<0)console.warn('SSS anchor missing');chunkS=chunkS.replace(DIRECT_OLD,DIRECT_NEW);
+ sh.fragmentShader=sh.fragmentShader.replace('#include <lights_physical_pars_fragment>',chunkS).replace('#include <lights_physical_fragment>','#include <lights_physical_fragment>\n{vec3 dnS=fwidth(normal);float vS=dot(dnS,dnS);material.specularRoughness=min(1.0,sqrt(material.specularRoughness*material.specularRoughness+min(vS*1.5,0.25)));}');
+ var lfb=T.ShaderChunk.lights_fragment_begin.split('\n').map(function(l){if(l.indexOf('getShadow( directionalShadowMap')<0)return l;return l.replace('directLight.color *= ','{float shS = ').replace(/;\s*$/,';directLight.color *= mix(vec3(shS),pow(vec3(shS),vec3(0.42,1.0,1.5)),clamp(uSSS,0.0,1.0));}')}).join('\n');
+ if(lfb.indexOf('float shS')<0)console.warn('skin shadow anchor missing');sh.fragmentShader=sh.fragmentShader.replace('#include <lights_fragment_begin>',lfb);
  sh.fragmentShader=sh.fragmentShader.replace('#include <common>',`#include <common>
+uniform float uMicro;uniform float uFuzz;uniform sampler2D uLut;uniform vec3 uKeyV;varying float vCurv;vec3 gSmN=vec3(0.0,0.0,1.0);float gCav=1.0;
+vec3 sssLut(float nl,float c){return texture2D(uLut,vec2(nl*0.5+0.5,c)).rgb;}
 varying vec3 vOP;varying vec3 vON;varying float vThin;varying float vRough;uniform sampler2D uH;uniform sampler2D uD;uniform float uBump;uniform float uOil;uniform float uSSS;uniform float uTrn;uniform float uAge;uniform float uFrk;uniform sampler2D uHT;uniform vec3 uHairA;uniform vec3 uHairB;uniform float uStub;varying vec2 vShort;varying float vFade;varying float vGv;uniform float uMapShow;uniform float uFadeN;uniform float uFadeShow;
 vec3 tpW(){vec3 w=pow(abs(normalize(vON)),vec3(4.0));return w/(w.x+w.y+w.z);}
 float tpH(){vec3 w=tpW();vec3 p=vOP*1.05;return texture2D(uH,p.zy).r*w.x+texture2D(uH,p.xz).r*w.y+texture2D(uH,p.xy).r*w.z;}
+float tpM(){vec3 w=tpW();vec3 p=vOP*3.1;return texture2D(uH,p.zy).b*w.x+texture2D(uH,p.xz).b*w.y+texture2D(uH,p.xy).b*w.z;}
 float tpF(){vec3 w=tpW();vec3 p=vOP*0.7;return texture2D(uH,p.zy).g*w.x+texture2D(uH,p.xz).g*w.y+texture2D(uH,p.xy).g*w.z;}
 vec3 tpD(){vec3 w=tpW();vec3 p=vOP*0.7;return texture2D(uD,p.zy).rgb*w.x+texture2D(uD,p.xz).rgb*w.y+texture2D(uD,p.xy).rgb*w.z;}
 float wrk(){if(uAge<=0.001)return 0.0;vec3 p=vOP;float ax=abs(p.x);
@@ -334,14 +359,16 @@ float gHair=0.0;
 if(uMapShow>0.5)diffuseColor.rgb=mix(diffuseColor.rgb*0.55+0.25,vec3(1.0,0.74,0.08),clamp(vGv,0.0,1.0)*0.9);
 if(uFadeShow>0.5&&vFade>0.5&&vFade<uFadeN+0.5){float fd=abs(vFade-floor(vFade+0.5)),fw=max(fwidth(vFade),1e-4);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(1.0,0.72,0.15),(1.0-smoothstep(fw*0.7,fw*1.8,fd))*0.9*smoothstep(0.15,0.5,vShort.y));}`)
  .replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
-roughnessFactor+=(0.55-tpH())*0.3+uAge*0.06-vRough;
+roughnessFactor+=(0.55-tpH())*0.3+uAge*0.06-vRough;gCav=smoothstep(0.18,0.6,tpH())*mix(1.0,tpM(),0.5*clamp(uMicro,0.0,1.0));
 float tzn=exp(-pow(vOP.x/0.9,2.0))*smoothstep(1.9,2.5,vOP.y)*smoothstep(-0.2,0.6,vOP.z)*smoothstep(4.2,3.6,vOP.y);
 roughnessFactor=clamp(roughnessFactor-tzn*uOil*0.3*(1.0-gHair),0.1,1.0);roughnessFactor=mix(roughnessFactor,0.85,gHair*0.8);`)
  .replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
-{float hH=tpH()*uBump*0.008-wrk()*0.007;vec3 dpx=dFdx(-vViewPosition),dpy=dFdy(-vViewPosition);float dHx=dFdx(hH),dHy=dFdy(hH);vec3 rr1=cross(dpy,normal),rr2=cross(normal,dpx);float det=dot(dpx,rr1);vec3 gr=sign(det)*(dHx*rr1+dHy*rr2);normal=normalize(abs(det)*normal-gr);}`)
+gSmN=normal;
+{float axS=abs(vOP.x),dyN=vOP.y-2.5,dyC=vOP.y-2.45,dyL=vOP.y-1.85;float noseM=exp(-(vOP.x*vOP.x/0.05+dyN*dyN/0.12))*step(0.9,vOP.z),chkM=exp(-((axS-0.72)*(axS-0.72)/0.08+dyC*dyC/0.1))*step(0.3,vOP.z),lipM=exp(-dyL*dyL/0.008-vOP.x*vOP.x/0.25)*step(0.8,vOP.z);float pm=(0.75+0.9*noseM+0.45*chkM)*(1.0-0.8*lipM);float hH=tpH()*uBump*0.0042*pm+(tpM()-1.0)*uMicro*0.0014*(1.0-0.6*lipM)-wrk()*0.007;vec3 dpx=dFdx(-vViewPosition),dpy=dFdy(-vViewPosition);float dHx=dFdx(hH),dHy=dFdy(hH);vec3 rr1=cross(dpy,normal),rr2=cross(normal,dpx);float det=dot(dpx,rr1);vec3 gr=sign(det)*(dHx*rr1+dHy*rr2);normal=normalize(abs(det)*normal-gr);}`)
  .replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
 {float rim=pow(1.0-clamp(dot(normalize(vViewPosition),normal),0.0,1.0),3.0);float ear=smoothstep(0.9,1.4,abs(vOP.x))*step(2.2,vOP.y)*step(vOP.y,3.4);
-totalEmissiveRadiance+=vec3(0.62,0.14,0.06)*(rim*0.22+ear*0.12)*uSSS*diffuseColor.r;}`)};
+float NoVf=clamp(dot(normalize(vViewPosition),normal),0.0,1.0),fz=pow(1.0-NoVf,4.0)*(0.25+0.75*clamp(dot(normal,uKeyV)*0.6+0.4,0.0,1.0));
+totalEmissiveRadiance+=vec3(0.62,0.14,0.06)*(rim*0.1+ear*0.1)*uSSS*diffuseColor.r+uFuzz*0.16*fz*mix(diffuseColor.rgb,vec3(0.92,0.86,0.8),0.55)*(1.0-gHair);}`)};
 var clayMat=new T.MeshStandardMaterial({color:0xbab3aa,roughness:0.72,metalness:0,side:T.DoubleSide});
 var wireMat=new T.MeshBasicMaterial({color:0x7fd0ff,wireframe:true,transparent:true,opacity:0.22,depthWrite:false});
 
@@ -851,22 +878,31 @@ function fitFeatures(){var pa=P.array;
 
 /* ================= deformation: morphs + sculpt ================= */
 var defDirty=true,paintDirty=true,animExpr=null;
+// mean curvature per vertex (1/unit): average normal change per unit distance to the one-ring, lightly smoothed
+function updCurv(){var at=g.attributes.aCurv;if(!at)return;var a=at.array,pa=P.array,na=N.array,tmp=new Float32Array(NV),i,q;
+ for(i=0;i<NV;i++){var sm2=0,cn=0,i3=i*3;for(q=NBO[i];q<NBO[i+1];q++){var j3=NBI[q]*3,dp=Math.hypot(pa[i3]-pa[j3],pa[i3+1]-pa[j3+1],pa[i3+2]-pa[j3+2]);if(dp<1e-6)continue;sm2+=Math.hypot(na[i3]-na[j3],na[i3+1]-na[j3+1],na[i3+2]-na[j3+2])/dp;cn++}tmp[i]=cn?sm2/cn:0}
+ for(i=0;i<NV;i++){var s3=tmp[i],c3=1;for(q=NBO[i];q<NBO[i+1];q++){s3+=tmp[NBI[q]];c3++}a[i]=s3/c3}at.needsUpdate=true}
 function applyDeform(){defDirty=false;var pa=P.array,ex=animExpr||S.expr,q,k;pa.set(REST);
  for(q=0;q<COMPS.length;q++){var C=COMPS[q],v=C.src==='shape'?S.shape[C.id]:C.src==='expr'?ex[C.id]:S.skin.age;if(!v)continue;var I=C.idx,Dd=C.d;
   for(k=0;k<I.length;k++){var j=I[k]*3,m=k*3;pa[j]+=Dd[m]*v;pa[j+1]+=Dd[m+1]*v;pa[j+2]+=Dd[m+2]*v}}
  for(k=0;k<pa.length;k++)pa[k]+=SD[k];
- P.needsUpdate=true;g.computeVertexNormals();g.computeBoundingSphere();buildShell();detectEar();updEar();fitFeatures();for(var n in LY)rebind(LY[n])}
+ P.needsUpdate=true;g.computeVertexNormals();updCurv();g.computeBoundingSphere();buildShell();detectEar();updEar();fitFeatures();for(var n in LY)rebind(LY[n])}
 
 /* ================= skin painting (tone, makeup, beard shadow) ================= */
 var STOPS=[[0,[0.98,0.86,0.78]],[0.2,[0.93,0.76,0.64]],[0.4,[0.84,0.62,0.48]],[0.6,[0.66,0.46,0.33]],[0.8,[0.45,0.29,0.2]],[1,[0.24,0.15,0.11]]];
 function skinRGB(m,r,out){var i=0;while(i<STOPS.length-2&&m>STOPS[i+1][0])i++;var a=STOPS[i],b=STOPS[i+1],t=clamp((m-a[0])/(b[0]-a[0]),0,1),c=[0,1,2].map(function(k){return a[1][k]+(b[1][k]-a[1][k])*t}),u=r-0.5;
  c[0]+=u*0.07*(1-m*0.5);c[1]+=-u*0.025;c[2]+=u*0.035;(out||(out=new T.Color())).setRGB(clamp(c[0],0,1),clamp(c[1],0,1),clamp(c[2],0,1));return out}
 function skinCol(){var c=S.skin.custom?col(S.skin.custom):skinRGB(S.skin.mel,S.skin.red);var a=S.skin.age;if(a>0){var hs={};c.getHSL(hs);c.setHSL(hs.h,hs.s*(1-0.25*a),hs.l*(1-0.05*a))}return c}
-var PINK=new T.Color('#d9707a'),LIP=new T.Color('#b0524c'),DK=new T.Color('#3b2622'),LNR=new T.Color('#0c0908');
+var FLUSH=new T.Color('#c4554f'),BLOT=new T.Color('#8a5a44'),WARM=new T.Color('#d9a273'),PINK=new T.Color('#d9707a'),LIP=new T.Color('#b0524c'),DK=new T.Color('#3b2622'),LNR=new T.Color('#0c0908');
 function paintSkin(){paintDirty=false;var cs=skinCol(),ch=col(cur.h),bc=beardCol(),mk=S.makeup,bl=col(mk.blushC),lp=col(mk.lipC),sh=col(mk.shadowC),ca=g.attributes.color,ra=g.attributes.aRough.array,t=new T.Color(),cfg=BEARD[S.beard.style]||BEARD.none;
  for(var i=0;i<NV;i++){var x=REST[i*3],y=REST[i*3+1],z=REST[i*3+2],ax=Math.abs(x);
   var cov=sm((y-yLow(x,y,z)+0.05)/0.5)*sm((earD(x,y,z)-0.45)/0.3)*(y>1.9?1:0);
   t.copy(cs);
+      // blood flow and melanin variation: redder nose, cheeks, ears and chin, warmer forehead, low-frequency blotches
+      var flu=S.skin.flush==null?0.45:S.skin.flush,blo=S.skin.blotch==null?0.4:S.skin.blotch;
+      if(blo>0){var bn=vn1(x*2.3,y*2.3,z*2.3,17)+0.55*vn1(x*6.5,y*6.5,z*6.5,23);t.multiplyScalar(1+bn*0.16*blo);t.lerp(BLOT,clamp(bn,0,1)*0.25*blo)}
+      if(flu>0){var fzm=1.1*Math.exp(-(x*x/0.06+sq(y-2.45)/0.06+sq(z-1.3)/0.12))+0.75*Math.exp(-(sq(ax-0.75)/0.07+sq(y-2.4)/0.07))*(z>0.25?1:0)+0.9*Math.exp(-(sq(ax-1.32)/0.03+sq(y-2.78)/0.18+sq(z+0.8)/0.12))+0.45*Math.exp(-(x*x/0.12+sq(y-1.55)/0.04))*(z>0.7?1:0)+0.35*Math.exp(-(sq(ax-0.38)/0.03+sq(y-2.82)/0.004))*(z>0.6?1:0);
+       t.lerp(FLUSH,Math.min(0.5,flu*0.3*fzm));t.lerp(WARM,flu*0.12*Math.exp(-(x*x/0.5+sq(y-3.65)/0.12))*(z>0.3?1:0))}
   t.lerp(PINK,0.22*Math.exp(-(sq(ax-0.85)+sq(y-2.3)+sq(z-0.7))/0.22)*(z>0.2?1:0));
   t.lerp(LIP,0.55*Math.exp(-(sq(y-1.85)/0.012+x*x/0.3))*(z>0.9?1:0));
   t.lerp(ch,(S.brow.on?0.22:0.7)*((ax>0.15&&ax<0.88&&z>0.7)?sm(1-Math.abs(y-3.2)/0.1):0));
@@ -880,10 +916,11 @@ function paintSkin(){paintDirty=false;var cs=skinCol(),ch=col(cur.h),bc=beardCol
   if(mk.lip>0)t.lerp(lp,mk.lip*0.92*lipT);
   ra[i]=lipT*(0.04+mk.gloss*0.4);ca.setXYZ(i,t.r,t.g,t.b)}
  ca.needsUpdate=true;g.attributes.aRough.needsUpdate=true}
-function updSkinU(){var k=S.skin;SKU.bump.value=k.bump;SKU.oil.value=k.oil;SKU.sss.value=k.sss;SKU.trn.value=k.trn;SKU.age.value=k.age;SKU.frk.value=k.freck;skinMat.roughness=k.rough;skinMat.clearcoat=0.05+0.25*k.oil}
+function updSkinU(){var k=S.skin;SKU.bump.value=k.bump;SKU.oil.value=k.oil;SKU.sss.value=k.sss;SKU.trn.value=k.trn;SKU.age.value=k.age;SKU.frk.value=k.freck;skinMat.roughness=k.rough;skinMat.clearcoat=0.02+0.12*k.oil;SKU.micro.value=k.micro==null?0.8:k.micro;SKU.fuzz.value=k.fuzz==null?0.35:k.fuzz}
 
 /* ================= lighting rigs ================= */
 var RIGS={
+ cinema:{en:'Cinematic (AAA)',ar:'سينمائي (AAA)',k:[-4,6.5,7,'#fff0e0',0.95],r:[5.5,4,-6,'#cfe0ff',0.32],f:[5,0,6,'#ffe9dc',0.07],h:['#f2ece6','#1f1a16',0.22],sky:['#050505','#2b2b2d'],bg:['#2c2d2f','#141516']},
  studio:{en:'Studio',ar:'استوديو',k:[4,7,6,'#fff2e0',0.7],r:[-6,4,-5,'#9ec4ff',0.35],f:[-5,1,6,'#ffffff',0],h:['#ffffff','#5a4a3c',0.35],sky:['#0d0b0a','#54595f'],bg:['#3b3f45','#151619']},
  portrait:{en:'Rembrandt',ar:'رامبرانت',k:[6,6,3,'#ffe6c8',0.85],r:[-5,5,-6,'#bcd2ff',0.25],f:[-6,0,4,'#ffffff',0.05],h:['#fff4e6','#2a2018',0.22],sky:['#060504','#2f2a25'],bg:['#2a2420','#0b0a09']},
  beauty:{en:'Beauty',ar:'تجميلي',k:[0,7,7,'#fff8f0',0.75],r:[0,5,-7,'#ffffff',0.45],f:[0,-3,6,'#fff0e6',0.25],h:['#ffffff','#8a7a70',0.4],sky:['#2a2828','#a7a4a0'],bg:['#d9d6d2','#9b9893']},
@@ -1276,7 +1313,7 @@ function buildUI(){
   Btn_('clearSD','Clear sculpt layer','مسح طبقة النحت')+'<p class="desc" style="margin-top:10px">'+sp('Shift = smooth · Ctrl/Alt = invert · [ and ] change the brush size.','Shift = تنعيم · Ctrl/Alt = عكس · [ و ] لتغيير حجم الفرشاة.')+'</p>';
  B.skin=Head_('Skin','البشرة','Pick a tone on the melanin × undertone map, then layer age, pores, freckles and lighting response.','اختر اللون من خريطة الميلانين × الدرجة التحتية، ثم أضف العمر والمسام والنمش واستجابة الإضاءة.')+
   '<canvas id="pal" width="300" height="120"></canvas><div class="chips">'+TONES.map(function(t){return'<button data-tone="'+t[2]+'">'+sp(t[0],t[1])+'</button>'}).join('')+'</div>'+
-  '<div class="cols">'+C_('skin.custom','Exact color','لون مخصص')+'</div>'+R_('skin.age','Age','العمر',0,1,0.01,0)+R_('skin.rough','Roughness','الخشونة',0.25,0.9,0.01)+R_('skin.bump','Pore detail','تفاصيل المسام',0,2,0.05)+R_('skin.freck','Freckles','النمش',0,1,0.02)+R_('skin.under','Under-eye darkness','الهالات تحت العين',0,1,0.02)+R_('skin.oil','Oily shine','لمعان دهني',0,1,0.05)+R_('skin.sss','Subsurface scattering','التشتت تحت السطح',0,1.5,0.05)+R_('skin.trn','Ear / nose translucency','شفافية الأذن والأنف',0,1.5,0.05);
+  '<div class="cols">'+C_('skin.custom','Exact color','لون مخصص')+'</div>'+R_('skin.age','Age','العمر',0,1,0.01,0)+R_('skin.rough','Roughness','الخشونة',0.25,0.9,0.01)+R_('skin.bump','Pore detail','تفاصيل المسام',0,2,0.05)+R_('skin.freck','Freckles','النمش',0,1,0.02)+R_('skin.under','Under-eye darkness','الهالات تحت العين',0,1,0.02)+R_('skin.oil','Oily shine','لمعان دهني',0,1,0.05)+R_('skin.sss','Subsurface scattering','التشتت تحت السطح',0,1.5,0.05)+R_('skin.trn','Ear / nose translucency','شفافية الأذن والأنف',0,1.5,0.05)+R_('skin.flush','Redness / blood flow','الاحمرار / تدفق الدم',0,1,0.02)+R_('skin.blotch','Tone variation (blotches)','تفاوت اللون (بقع)',0,1,0.02)+R_('skin.micro','Micro detail (fine lines)','التفاصيل الدقيقة (خطوط ناعمة)',0,2,0.05)+R_('skin.fuzz','Peach fuzz (vellus)','الزغب الناعم',0,1,0.02)+'<div class="desc" style="margin-top:6px">'+sp('AAA skin presets','إعدادات بشرة جاهزة')+'</div><div class="chips">'+[['weathered','Weathered (photo)','خشنة (الصورة)'],['young','Young & fresh','شابة ونضرة'],['aged','Aged','متقدّمة في العمر'],['oily','Oily / sweaty','دهنية / متعرّقة']].map(function(p){return'<button data-skp="'+p[0]+'">'+sp(p[1],p[2])+'</button>'}).join('')+'</div>';
  B.eyes=Head_('Eyes','العيون','Procedural irises with fibers, crypts and limbal ring. Lashes are real strands.','قزحيات إجرائية بألياف وتجاويف وحلقة حوفية. الرموش خصلات حقيقية.')+
   '<div class="sw" id="isw">'+ICOL.map(function(c){return'<button data-iris="'+c[0]+'" style="background:'+c[0]+'" data-ten="'+c[1]+'" data-tar="'+c[2]+'"></button>'}).join('')+'</div>'+
   '<div class="cols">'+C_('eyes.c','Iris','القزحية')+C_('eyes.c2','Right iris','القزحية اليمنى')+C_('eyes.sclera','Sclera','بياض العين')+'</div>'+K_('eyes.het','Heterochromia (different right eye)','تغاير لون العينين')+
@@ -1419,7 +1456,9 @@ function bindUI(){var root=document.body;
  $('rd').onclick=function(){cur.seed=1+Math.floor(Math.random()*999);buildScalp();syncUI();commit()};
  $('shk').onclick=function(){PH.shake=1.2;PH.asleep=false};
  $('stl').onclick=function(){if(PH.o){PH.o.set(PH.g);PH.v.fill(0);phWrite(PH.g)}PH.shake=0;PH.asleep=true};
- $('combGo').onclick=function(){setMode('comb')};$('grGo').onclick=function(){setMode('groom')};$('tiePlace').onclick=function(){setMode('tieplace')};
+ $('combGo').onclick=function(){setMode('comb')};
+ var SKP={weathered:{mel:0.62,red:0.56,custom:'',bump:0.95,rough:0.5,oil:0.6,sss:0.8,trn:0.9,freck:0.3,age:0.4,under:0.45,flush:0.55,blotch:0.65,micro:1.1,fuzz:0.3},young:{bump:0.75,rough:0.55,oil:0.4,sss:0.9,freck:0.15,age:0,under:0.2,flush:0.4,blotch:0.3,micro:0.6,fuzz:0.45},aged:{bump:1.15,rough:0.62,oil:0.3,sss:0.75,freck:0.45,age:0.85,under:0.55,flush:0.6,blotch:0.8,micro:1.4,fuzz:0.25},oily:{oil:1,rough:0.42,bump:1,flush:0.55,micro:0.9}};
+ document.querySelectorAll('[data-skp]').forEach(function(b){b.onclick=function(){Object.assign(S.skin,SKP[b.dataset.skp]);defDirty=true;paintDirty=true;updSkinU();updHairCols();syncUI();commit()}});$('grGo').onclick=function(){setMode('groom')};$('tiePlace').onclick=function(){setMode('tieplace')};
  $('grReset').onclick=function(){grmReset();applyGroomAll();grmViz();commit()};
  document.querySelectorAll('[data-tiepos]').forEach(function(b){b.onclick=function(){S.tie.u=b.dataset.tiepos.split(',').map(Number);S.tie.mode=b.dataset.tmode;S.tie.sel=b.dataset.tsel;updTie('sel');syncUI();commit()}});
  $('earDet').onclick=function(){detectEar();S.ear.guides=true;updEar();syncUI();toast(tx('Ears detected','تم اكتشاف الأذن'));commit()};
@@ -1485,7 +1524,7 @@ var tab0='blend';try{tab0=localStorage.getItem('hf_tab')||'blend'}catch(e){}if(!
 ready=true;showTab(tab0);setMode(mode);syncUI();applyDeform();paintSkin();last=snap();updUR();
 var clock=new T.Clock(),fpsA=0,fpsN=0;
 // HF_TEST: headless harness steps frames manually instead of running the rAF loop
-if(window.HF_TEST)window.HF={SKU:SKU,geo:function(){return g},skinMat:skinMat,updShort:updShort,EARD:function(){return EARD},S:S,BR:BR,LY:LY,frame:function(n){for(var i=0;i<(n||1);i++)frame()},setCtl:setCtl,syncUI:syncUI,showTab:showTab,goCam:goCam,undo:undo,redo:redo,brushAt:brushAt,commit:commit,randomAll:randomAll,setupMesh:setupMesh,buildAll:buildAll,refreshAll:refreshAll,gStart:gStart,cutAt:cutAt,exportOBJ:exportOBJ,saveJSON:saveJSON,loadJSON:loadJSON,anim:ANIM,RIMS:function(){return RIMS},cam:function(t,p,d){th=t;ph=p;dist=d;camGoal=null;place()},setTgt:function(x,y,z){tgt.set(x,y,z);place()},snap:snap};
+if(window.HF_TEST)window.HF={SKU:SKU,geo:function(){return g},skinMat:skinMat,updShort:updShort,EARD:function(){return EARD},S:S,BR:BR,LY:LY,frame:function(n){for(var i=0;i<(n||1);i++)frame()},setCtl:setCtl,syncUI:syncUI,showTab:showTab,goCam:goCam,undo:undo,redo:redo,brushAt:brushAt,commit:commit,randomAll:randomAll,setupMesh:setupMesh,buildAll:buildAll,refreshAll:refreshAll,gStart:gStart,cutAt:cutAt,exportOBJ:exportOBJ,saveJSON:saveJSON,loadJSON:loadJSON,anim:ANIM,RIMS:function(){return RIMS},cam:function(t,p,d){th=t;ph=p;dist=d;camGoal=null;place()},setTgt:function(x,y,z){tgt.set(x,y,z);place()},snap:snap,pick:function(x,y){var h=hit({clientX:x,clientY:y});return h?h.p.toArray().map(function(v){return+v.toFixed(3)}):null},mode:function(){return mode+'/'+S.barb.tool+'/'+cutting}};
 (function loop(){requestAnimationFrame(loop);if(!window.HF_TEST)frame()})();
 function frame(){var dt=Math.min(clock.getDelta(),0.05),tm=clock.elapsedTime;
  if(auto)autoStep(dt);
