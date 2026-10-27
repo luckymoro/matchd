@@ -36,7 +36,8 @@ var S={
  fade:{on:false,style:'fade',lo:'skin',hi:'2',start:2.2,top:3.35,soft:0.7,lines:true},
  beard:{style:'none',len:1,dens:0.8,stub:0,c:'#2a1b11',link:true},
  phys:{on:true,k:150,damp:0.3,grav:1,wind:0},
- hmat:{shine:1,gloss:1,trans:1,grey:0},
+ hmat:{shine:1,gloss:1,trans:1,grey:0,soft:0.7,shadow:1},
+ comb:{t:'comb',r:0.45,str:1},
  light:{rig:'studio',rot:0,int:1,expo:1,tone:'linear',bg:'rig',bgc:'#202226'},
  view:{mode:'lit',focal:42,hair:true,turn:false}
 };
@@ -145,14 +146,17 @@ Object.assign(PR,{
  wPixie:{flow:'side',part:0.3,count:130,len:0.32,fadeBand:0.5,nape:2.15,front:3.85,lift:0.4,curl:0.2,stub:0.3,seed:107,h:'#6a4a2a',t:'#c8a070',vol:0.06,volF:0.1,layer:0.4,wave:0.02,lock:0.35,clump:0.5,bangs:'side',bangLen:0.55}});
 var PRW=[['wLong','Long straight · center part','طويل ناعم · فرق في المنتصف'],['wWavy','Long waves · side part','طويل مموّج · فرق جانبي'],['wBangs','Long with blunt bangs','طويل مع غرّة مستقيمة'],['wLob','Lob with curtain bangs','لوب مع غرّة ستارة'],['wBob','Classic bob','بوب كلاسيكي'],['wCurly','Long curls','تجاعيد طويلة'],['wPixie','Pixie cut','قصّة بيكسي']];
 var PRN=[['hsf','Textured crop + high skin fade','كروب مموّج مع تدريج عالٍ حتى الجلد'],['beck','Beckham textured quiff','كويف بيكهام المموّج'],['beck16','Beckham long top, short sides','بيكهام: أعلى طويل وجوانب قصيرة'],['mi2','Mission: Impossible 2 (to the nape)','مهمة مستحيلة 2 (حتى الرقبة)'],['titanic','Titanic curtains (DiCaprio ’97)','ستارة تايتانك (دي كابريو)'],['topgun','Top Gun side part (Tom Cruise)','فرق جانبي توب غن (توم كروز)'],['kroos','Slick back + high fade (Kroos)','للخلف مع تدريج عالٍ (كروس)'],['quiff','Textured quiff + low fade','كويف مموّج مع تدريج منخفض'],['pomp','Pompadour','بومبادور'],['flowback','Flow back','انسياب للخلف'],['base','Base shape (uncut)','الشكل الأساسي (غير مقصوص)'],['fade','Short fade (photo look)','تدريج قصير'],['buzz','Buzz cut','حلاقة قصيرة جداً'],['crop','Textured crop','قصة كروب'],['long','Long','طويل'],['ref','Dark wavy swept-up (photo)','مموّج داكن مرفوع'],['curly','Natural curly','مجعّد طبيعي'],['wavy','Wavy','مموّج'],['afro','Afro / coily','أفرو'],['dicap','Slick back (DiCaprio)','مسرّح للخلف'],['cruise','Side-swept (Tom Cruise)','مسرّح جانبي'],['undercut','Undercut','أندركت'],['mohawk','Mohawk','موهوك']];
-function setP(k){var fp=PR[k].fadeP;S.fade.on=!!fp;if(fp)Object.assign(S.fade,fp);S.hair=cur=Object.assign({preset:k,oneLen:0,lenVar:0.6,drape:1,bangs:'none',bangLen:0.6,coil:0,freq:0,sweep:0,wave:0.015,lock:0.18,bend:0.75,mohawk:0,flow:'crown',part:0.45,vol:0.05,volF:0,layer:0.5,clump:0.4},JSON.parse(JSON.stringify(PR[k])))}
+function setP(k){var fp=PR[k].fadeP;S.fade.on=!!fp;if(fp)Object.assign(S.fade,fp);S.hair=cur=Object.assign({preset:k,oneLen:0,lenVar:0.6,drape:1,bangs:'none',bangLen:0.6,coil:0,freq:0,sweep:0,wave:0.015,lock:0.18,bend:0.75,mohawk:0,flow:'crown',part:0.45,ear:'behind',vol:0.05,volF:0,layer:0.5,clump:0.4},JSON.parse(JSON.stringify(PR[k])))}
 
 /* ================= renderer / scene ================= */
 var cv=$('c'),st=$('stage'),ren=new T.WebGLRenderer({canvas:cv,antialias:true,alpha:true,preserveDrawingBuffer:true});
-ren.setPixelRatio(Math.min(devicePixelRatio,2));ren.toneMapping=T.LinearToneMapping;
+ren.setPixelRatio(Math.min(devicePixelRatio,2));ren.toneMapping=T.LinearToneMapping;ren.shadowMap.enabled=true;ren.shadowMap.type=T.PCFSoftShadowMap;
 var scene=new T.Scene(),cam=new T.PerspectiveCamera(32,1,0.1,100);
 var hemi=new T.HemisphereLight(0xffffff,0x5a4a3c,0.35);scene.add(hemi);
 var key=new T.DirectionalLight(0xfff2e0,0.7);key.position.set(4,7,6);scene.add(key);
+// key light casts the hair/face shadows; the ortho frustum just covers head + neck
+key.castShadow=true;key.shadow.mapSize.set(2048,2048);key.shadow.bias=-0.0006;key.shadow.normalBias=0.015;key.shadow.radius=2;
+(function(c){c.left=-2.6;c.right=2.6;c.top=2.6;c.bottom=-2.6;c.near=2;c.far=22})(key.shadow.camera);key.target.position.set(0,2.75,-0.3);scene.add(key.target);
 var rim=new T.DirectionalLight(0x9ec4ff,0.35);rim.position.set(-6,4,-5);scene.add(rim);
 var fill=new T.DirectionalLight(0xffffff,0);fill.position.set(-5,1,6);scene.add(fill);
 var pm=new T.PMREMGenerator(ren),es2=new T.Scene(),sky=new T.Mesh(new T.SphereGeometry(50,32,16),new T.MeshBasicMaterial({side:T.BackSide,vertexColors:true}));
@@ -337,10 +341,38 @@ var HAIR_VS=`
 attribute float aT;attribute vec3 aRoot;attribute vec3 aDir;attribute vec3 aNrm;attribute vec4 aMisc;attribute float aVar;attribute vec4 aClump;attribute vec3 aCC;
 uniform float uFlow;uniform vec3 uHC;uniform vec3 uHR;uniform sampler2D uShell;uniform float uVol;uniform float uVolF;uniform float uLayer;uniform float uGravF;uniform float uClumpA;uniform float uHide;uniform float uDrape;
 uniform sampler2D uPh;uniform float uGW;uniform float uCurl;uniform float uSag;uniform float uPhys;uniform vec4 uClip;uniform float uCoil;uniform float uFreq;uniform float uWaveA;uniform float uWaveF;uniform float uLock;uniform float uBend;
-varying vec3 vT;varying vec3 vN;varying vec3 vV;varying float vP;varying float vVar;varying float vS;
+varying vec3 vT;varying vec3 vN;varying vec3 vV;varying float vP;varying float vVar;varying float vS;varying vec3 vW;
 // hair flows around the ear (tucked behind / in front of it, side chosen per strand from its root) instead of tenting over it or poking through
-vec3 earPush(vec3 p,float t){float ey=(p.y-2.76)/0.48;if(abs(ey)<1.0&&abs(p.x)>0.98){float hw=0.34*sqrt(1.0-ey*ey),dz=p.z+0.71;
- if(abs(dz)<hw){float tz=-0.71+(aRoot.z+0.71<0.0?-1.0:1.0)*hw*1.04;p.z=mix(p.z,tz,smoothstep(0.01,0.12,t));}}return p;}
+uniform float uEar;float shellR(vec3 u);
+// Ear routing (uEar: -1 off, 0 tucked behind, 1 covering). Flap: |x| 1.12..1.42, y 2.25..3.3, z -1.15..-0.45.
+vec3 earFix(vec3 p,float t){
+ if(uEar<-0.5)return p;
+ float ax=abs(p.x),sx=p.x<0.0?-1.0:1.0;
+ vec2 qe=vec2((p.y-2.78)/0.6,(p.z+0.8)/0.42);float e2=dot(qe,qe);
+ if(ax<0.85)return p;
+ float w=smoothstep(0.01,0.12,t)*smoothstep(1.0,0.5,e2);
+ if(uEar<0.5){
+  // tucked: hair that would cross the ear sweeps behind it (and stays behind below it, exposing the neck);
+  // temple/sideburn strands go in front; everything near the flap lies flat so it slips under its rim
+  float yC=2.78,hw=0.38*(p.y>yC?sqrt(max(0.0,1.0-(p.y-yC)*(p.y-yC)/0.36)):1.0);
+  float wy=p.y>yC?smoothstep(3.42,3.12,p.y):smoothstep(1.35,1.85,p.y);
+  bool fr=aRoot.z>-0.42&&aRoot.y<2.95;
+  float zb=-0.8-hw*1.1,zf=-0.8+hw*1.1;
+  float pin=smoothstep(0.01,0.12,t);
+  if(ax>0.85&&p.z<zf+0.1&&p.z>zb){
+   float ws=pin*wy*smoothstep(zf+0.1,zf-0.04,p.z);
+   p.z=mix(p.z,fr?zf+0.02:zb,ws);
+   w=max(w,ws*0.8);
+  }
+  vec3 qq=(p-uHC)/uHR;float ll=length(qq);vec3 uu=qq/ll;float sr=shellR(uu)+0.01;
+  if(ll>sr)p=mix(p,uHC+uHR*uu*sr,w);
+ }else{
+  // covering: every hair layer is lifted by the ear's protrusion (keeps the layering, so no sparse sheet),
+  // easing in above the ear and draping out slowly below it
+  vec2 qc=vec2((p.y-2.78)/(p.y<2.78?1.0:0.62),(p.z+0.8)/0.5);float f2=dot(qc,qc);
+  if(f2<1.0&&ax<1.75)p.x=sx*(ax+0.36*smoothstep(1.0,0.3,f2)*smoothstep(0.01,0.12,t));
+ }
+ return p;}
 float shellR(vec3 u){vec2 uv=vec2(atan(u.x,u.z)*0.15915494+0.5,asin(clamp(u.y,-1.0,1.0))*0.31830989+0.5);return 0.6+texture2D(uShell,uv).r*1.2;}
 // Flow groom: the strand travels along a great circle of the head shell (ellipsoid space, radius from a
 // baked surface map) in its combed direction, lifts off by the volume profile, and leaves the head
@@ -389,8 +421,8 @@ vec3 hp(float t){
  vec3 d=min(L,1.2)*(o1*(6.75*t*t*(1.0-t))+o2*(t*t*t))*smoothstep(0.04,0.4,L)*uPhys;
  float h=dot(p-aRoot,aNrm);float dn=dot(d,aNrm);
  float pin=smoothstep(0.0,0.15,t);
- if(uFlow>0.5){vec3 pp=p+d;vec3 qq=(pp-uHC)/uHR;float ll=length(qq);vec3 uu=qq/ll;float sr=shellR(uu)+0.003;if(ll<sr)pp=mix(pp,uHC+uHR*uu*sr,smoothstep(0.02,0.12,t));p=earPush(pp,t*L);}
- else{if(h+dn<0.012)d+=aNrm*(0.012-(h+dn))*pin;p+=d;}
+ if(uFlow>0.5){vec3 pp=p+d;vec3 qq=(pp-uHC)/uHR;float ll=length(qq);vec3 uu=qq/ll;float sr=shellR(uu)+0.003;if(ll<sr)pp=mix(pp,uHC+uHR*uu*sr,smoothstep(0.02,0.12,t));p=earFix(pp,t*L);}
+ else{if(h+dn<0.012)d+=aNrm*(0.012-(h+dn))*pin;p+=d;p=earFix(p,t*L);}
  if(uClip.w>0.0){vec3 dd=p-uClip.xyz;float l=length(dd);if(l<uClip.w){p+=dd/(l+1e-4)*(uClip.w-l)*0.4*pin*smoothstep(0.05,0.25,L);}}
  return p;
 }
@@ -403,42 +435,73 @@ void main(){
  vec4 mv=viewMatrix*vec4(p0,1.0);
  vT=mat3(viewMatrix)*normalize(tg+vec3(0.0,1e-5,0.0));
  vN=mat3(viewMatrix)*aNrm;
- vV=-mv.xyz;vP=aT;vVar=aVar;vS=aT*aMisc.x;
+ vV=-mv.xyz;vP=aT;vVar=aVar;vS=aT*aMisc.x;vW=p0;
  gl_Position=projectionMatrix*mv;
 }`;
 var HAIR_FS=`
 uniform vec3 uHair;uniform vec3 uTip;uniform vec3 uL1;uniform vec3 uL2;uniform vec3 uC1;uniform vec3 uC2;uniform vec3 uAmb;
-uniform float uShine;uniform float uGloss;uniform float uTrans;uniform float uGrey;uniform vec3 uGreyC;
-varying vec3 vT;varying vec3 vN;varying vec3 vV;varying float vP;varying float vVar;varying float vS;
+uniform float uShine;uniform float uGloss;uniform float uTrans;uniform float uGrey;uniform vec3 uGreyC;uniform float uSoft;
+uniform sampler2D uShMap;uniform mat4 uShM;uniform float uShOn;uniform float uShTx;uniform float uShRng;uniform float uShD;
+varying vec3 vT;varying vec3 vN;varying vec3 vV;varying float vP;varying float vVar;varying float vS;varying vec3 vW;
+#include <packing>
 float kk(vec3 T,vec3 H,float e){float d=dot(T,H);float s=sqrt(max(0.0,1.0-d*d));return pow(s,e)*smoothstep(-1.0,0.0,d);}
-vec3 shade(vec3 L,vec3 lc,vec3 T,vec3 N,vec3 V,vec3 base){
+// Deep-opacity style self-shadow from the key light's shadow map: hair is translucent, so light fades
+// with the thickness of hair in front of the fragment instead of switching off at the first strand.
+float hairShadow(){
+ if(uShOn<0.5)return 1.0;
+ vec4 sc=uShM*vec4(vW,1.0);vec3 c=sc.xyz/sc.w;
+ if(c.x<0.0||c.x>1.0||c.y<0.0||c.y>1.0||c.z>1.0)return 1.0;
+ float s=0.0;
+ for(int i=-1;i<=1;i++)for(int j=-1;j<=1;j++){
+  float o=unpackRGBAToDepth(texture2D(uShMap,c.xy+vec2(float(i),float(j))*uShTx*1.5));
+  s+=exp(-max(c.z-o-0.0004,0.0)*uShRng*uShD);
+ }
+ return s/9.0;
+}
+// Marschner-style lobes: R (white cuticle glint, shifted to the root), TRT (tinted, broader, shifted to the tip), TT (backlit transmission)
+vec3 shade(vec3 L,vec3 lc,vec3 T,vec3 N,vec3 V,vec3 base,float sh){
  float nl=dot(N,L);
- float lit=smoothstep(-0.25,0.55,nl);
+ float wrap=clamp((nl+0.35)/1.35,0.0,1.0);
  float tl=dot(T,L);
- float diff=sqrt(max(0.0,1.0-tl*tl))*0.6+0.4*clamp(nl*0.5+0.5,0.0,1.0);
+ float sinTL=sqrt(max(0.0,1.0-tl*tl));
+ vec3 diff=base*(sinTL*0.55+0.45*wrap)*wrap;
  vec3 H=normalize(L+V);
- float jit=(vVar-1.0)*0.25;
- vec3 T1=normalize(T+N*(-0.06+jit));
- vec3 T2=normalize(T+N*(0.12+jit));
- float s1=kk(T1,H,110.0*uGloss)*0.2;
- float s2=kk(T2,H,28.0*uGloss)*0.3;
- vec3 sp=lc*lit*uShine*(s1*mix(vec3(1.0),base*3.0,0.15)+s2*base*1.6+kk(T,H,9.0)*base*0.9);
- float tr=pow(clamp(dot(V,-L),0.0,1.0),4.0)*(1.0-lit*0.4);
- return base*diff*lit*lc+sp+base*lc*tr*uTrans*0.45;
+ float jit=(vVar-1.0)*0.35+(fract(vVar*23.17)-0.5)*0.08;
+ vec3 TR=normalize(T+N*(-0.07+jit));
+ vec3 T2=normalize(T+N*(0.14+jit));
+ float g=uGloss;
+ float r=kk(TR,H,320.0*g)*0.4+kk(TR,H,90.0*g)*0.05;
+ float glint=0.55+0.9*fract(vVar*71.3);
+ float trt=kk(T2,H,36.0*g)*0.5*glint;
+ vec3 spec=lc*uShine*(vec3(r)+trt*base*2.6)*smoothstep(-0.2,0.35,nl+0.2);
+ float tt=pow(clamp(dot(V,-L),0.0,1.0),5.0)*sinTL;
+ vec3 trans=lc*tt*uTrans*sqrt(base)*base*3.0;
+ return (diff*lc+spec)*sh+trans*mix(0.25,1.0,sh);
 }
 void main(){
  vec3 T=normalize(vT);vec3 N=normalize(vN);vec3 V=normalize(vV);
  vec3 base=mix(uHair,uTip,smoothstep(0.15,1.0,vP)*0.7);
  base=mix(base,uGreyC,step(fract(vVar*53.17),uGrey));
- base*=vVar;base*=mix(1.0,0.4,smoothstep(0.75,1.0,vP));if(fract(vVar*91.7)>0.95)base*=0.6;
+ // per-strand melanin variation: brightness plus a slight warm/cool shift
+ float hv=fract(vVar*17.31)-0.5;
+ base*=vVar*vec3(1.0+hv*0.1,1.0,1.0-hv*0.1);
+ base*=mix(1.0,0.7,smoothstep(0.8,1.0,vP));if(fract(vVar*91.7)>0.95)base*=0.6;
+ float sh=hairShadow();
  // root occlusion by distance from the scalp, so long hair isn't dark for its first half-unit
- float ao=mix(0.28,1.0,smoothstep(0.0,0.5,max(vP,vS/0.6)));
- vec3 c=base*uAmb*(0.6+0.4*N.y)*ao+(shade(uL1,uC1,T,N,V,base)+shade(uL2,uC2,T,N,V,base))*mix(0.5,1.0,ao);
+ float ao=mix(0.22,1.0,smoothstep(0.0,0.5,max(vP,vS/0.6)));
+ float occ=mix(0.4,1.0,sh)*ao;
+ vec3 c=base*uAmb*(0.6+0.4*N.y)*occ+shade(uL1,uC1,T,N,V,base,sh*mix(0.5,1.0,ao))+shade(uL2,uC2,T,N,V,base,mix(0.5,1.0,ao));
+ // multiple scattering: light diffusing through neighbouring fibres keeps shadowed light hair from going grey
+ c+=base*base*uC1*0.2*(1.0-sh)*ao;
+ // tapered silhouette: every fibre ends at a slightly different point, like real cut/grown tips
+ // (no alpha: the canvas must stay opaque and strands are not depth-sorted)
+ if(vP>1.0-uSoft*0.3*fract(vVar*113.7))discard;
  gl_FragColor=vec4(c,1.0);
  #include <tonemapping_fragment>
  #include <encodings_fragment>
 }`;
-var LU={uL1:{value:new T.Vector3(0,0,1)},uL2:{value:new T.Vector3(0,0,1)},uC1:{value:new T.Vector3(1.25,1.18,1.08)},uC2:{value:new T.Vector3(0.22,0.28,0.38)},uAmb:{value:new T.Vector3(0.42,0.4,0.38)}};
+var HAIR_DFS='#include <packing>\nvoid main(){gl_FragColor=packDepthToRGBA(gl_FragCoord.z);}';
+var LU={uShMap:{value:null},uShM:{value:key.shadow.matrix},uShOn:{value:0},uShTx:{value:1/2048},uShRng:{value:20},uShD:{value:14},uL1:{value:new T.Vector3(0,0,1)},uL2:{value:new T.Vector3(0,0,1)},uC1:{value:new T.Vector3(1.25,1.18,1.08)},uC2:{value:new T.Vector3(0.22,0.28,0.38)},uAmb:{value:new T.Vector3(0.42,0.4,0.38)}};
 var SHW=128,SHH=64,SHD=new Uint8Array(SHW*SHH),SHF=new Float32Array(SHW*SHH),SHT=new Float32Array(SHW*SHH);
 var shellTex=new T.DataTexture(SHD,SHW,SHH,T.LuminanceFormat,T.UnsignedByteType);shellTex.wrapS=T.RepeatWrapping;shellTex.wrapT=T.ClampToEdgeWrapping;shellTex.magFilter=shellTex.minFilter=T.LinearFilter;shellTex.generateMipmaps=false;
 var HC=new T.Vector3(0,3.15,-0.35),HR=new T.Vector3(1.38,1.5,1.5);
@@ -466,8 +529,8 @@ function flowJS(H,U,i,s,out){var j=i*3,q=new T.Vector3(H.RT[j],H.RT[j+1],H.RT[j+
  out[0]=p.x;out[1]=p.y;out[2]=p.z}
 var DUMMY=new T.DataTexture(new Float32Array(8),1,2,T.RGBAFormat,T.FloatType);DUMMY.needsUpdate=true;
 var CLIPU={value:new T.Vector4(0,0,0,0)};
-function mkLayer(n,o){var U={uPh:{value:DUMMY},uGW:{value:1},uCurl:{value:0.3},uSag:{value:0.3},uPhys:{value:0},uCoil:{value:0},uFreq:{value:0},uWaveA:{value:0.015},uBend:{value:0.75},uWaveF:{value:2.5},uLock:{value:0.18},uClip:o.clip?CLIPU:{value:new T.Vector4()},uHair:{value:new T.Color()},uTip:{value:new T.Color()},uShine:{value:1},uGloss:{value:1},uTrans:{value:1},uGrey:{value:0},uGreyC:{value:new T.Color(0.74,0.73,0.71)},uFlow:{value:0},uHC:{value:HC},uHR:{value:HR},uShell:{value:shellTex},uVol:{value:0},uVolF:{value:0},uLayer:{value:0},uGravF:{value:1},uClumpA:{value:0},uDrape:{value:1},uHide:{value:o.cut?0.045:0}};
- for(var k in LU)U[k]=LU[k];return{n:n,U:U,mat:new T.ShaderMaterial({uniforms:U,vertexShader:HAIR_VS,fragmentShader:HAIR_FS}),H:{n:0},obj:null,st:null,cut:!!o.cut,off:o.off,dirty:false}}
+function mkLayer(n,o){var U={uPh:{value:DUMMY},uGW:{value:1},uCurl:{value:0.3},uSag:{value:0.3},uPhys:{value:0},uCoil:{value:0},uFreq:{value:0},uWaveA:{value:0.015},uBend:{value:0.75},uWaveF:{value:2.5},uLock:{value:0.18},uClip:o.clip?CLIPU:{value:new T.Vector4()},uHair:{value:new T.Color()},uTip:{value:new T.Color()},uShine:{value:1},uGloss:{value:1},uTrans:{value:1},uGrey:{value:0},uGreyC:{value:new T.Color(0.74,0.73,0.71)},uFlow:{value:0},uHC:{value:HC},uHR:{value:HR},uShell:{value:shellTex},uVol:{value:0},uVolF:{value:0},uLayer:{value:0},uGravF:{value:1},uClumpA:{value:0},uDrape:{value:1},uHide:{value:o.cut?0.045:0},uSoft:{value:0.7},uEar:{value:-1}};
+ for(var k in LU)U[k]=LU[k];return{n:n,U:U,mat:new T.ShaderMaterial({uniforms:U,vertexShader:HAIR_VS,fragmentShader:HAIR_FS}),dmat:new T.ShaderMaterial({uniforms:U,vertexShader:HAIR_VS,fragmentShader:HAIR_DFS}),H:{n:0},obj:null,st:null,cut:!!o.cut,off:o.off,dirty:false}}
 var LY={scalp:mkLayer('scalp',{clip:true,cut:true,off:0.015}),brow:mkLayer('brow',{off:0.004}),beard:mkLayer('beard',{clip:true,cut:true,off:0.006}),lash:mkLayer('lash',{off:0})};
 var HU=LY.scalp.U;HU.sag0=0.3;
 function newH(n){return{n:0,RT:new Float32Array(n*3),NRM:new Float32Array(n*3),DIR:new Float32Array(n*3),L0:new Float32Array(n),CAP:new Float32Array(n).fill(9),MISC:new Float32Array(n*4),VAR:new Float32Array(n),CL:new Float32Array(n*4),TI:new Int32Array(n),BU:new Float32Array(n),BV:new Float32Array(n),CC:new Float32Array(n*3)}}
@@ -488,7 +551,7 @@ function finalize(L,k,segs){var H=L.H;H.n=k;H.segs=segs;var bg=new T.InstancedBu
  bg.setAttribute('aNrm',new T.InstancedBufferAttribute(H.NRM,3).setUsage(T.DynamicDrawUsage));
  bg.setAttribute('aMisc',new T.InstancedBufferAttribute(H.MISC,4).setUsage(T.DynamicDrawUsage));
  bg.setAttribute('aVar',new T.InstancedBufferAttribute(H.VAR,1));bg.setAttribute('aCC',new T.InstancedBufferAttribute(H.CC,3));bg.setAttribute('aClump',new T.InstancedBufferAttribute(H.CL,4));
- bg.instanceCount=k;L.obj=new T.LineSegments(bg,L.mat);L.obj.frustumCulled=false;L.obj.visible=S.view.hair;scene.add(L.obj)}
+ bg.instanceCount=k;L.obj=new T.LineSegments(bg,L.mat);L.obj.frustumCulled=false;L.obj.castShadow=L.n!=='lash';L.obj.customDepthMaterial=L.dmat;L.obj.visible=S.view.hair;scene.add(L.obj)}
 function mkStub(L,list){var n=list.length/4;if(!n)return;var sg=new T.BufferGeometry();sg.setAttribute('position',new T.BufferAttribute(new Float32Array(n*3),3).setUsage(T.DynamicDrawUsage));sg.setAttribute('color',new T.BufferAttribute(new Float32Array(n*3),3));
  L.st={n:n,d:Float32Array.from(list),obj:new T.Points(sg,new T.PointsMaterial({size:1.6,sizeAttenuation:false,vertexColors:true}))};L.st.obj.frustumCulled=false;L.st.obj.visible=S.view.hair;scene.add(L.st.obj);rebindStub(L)}
 function updShort(){shortDirty=false;var cnt=SHC,sl=SHL,i,q;cnt.fill(0);sl.fill(0);
@@ -530,7 +593,7 @@ function edAt(sp){var t=sp.ti*3,w=1-sp.u-sp.v;return EARD[IX[t]]*w+EARD[IX[t+1]]
 function hairW(x,y,z,ed){if(y<1.95||isEar(x,y,z))return 0;var eey=(y-2.76)/0.48;if(Math.abs(x)>0.95&&Math.abs(eey)<1&&Math.abs(z+0.71)<0.34*Math.sqrt(1-eey*eey))return 0;var yl=yLow(x,y,z),ye=z>-0.45?2.45+0.35*sm((-0.3-z)/0.15):z>-1.0?2.8:2.8+(cur.nape-2.8)*sm((-1.0-z)/0.3);yl=Math.max(yl,ye);
  HLY=yl;return sm((y-yl+0.06)/0.12)*sm((ed-0.03)/0.05)}
 function buildScalp(){var L=LY.scalp;disposeL(L);var c=cur,R=rng(c.seed),n=Math.round(c.count*1000),H=L.H=newH(n),k=0,tries=0,U=L.U;
- HU.sag0=0.35/(0.2+c.len)*(1-c.lift*0.6);U.uSag.value=HU.sag0*PH.grav*1.8;U.uCurl.value=c.curl;U.uCoil.value=c.coil||0;U.uFreq.value=c.freq||0;U.uWaveA.value=c.wave||0;U.uLock.value=c.lock||0;U.uBend.value=c.bend;
+ HU.sag0=0.35/(0.2+c.len)*(1-c.lift*0.6);U.uSag.value=HU.sag0*PH.grav*1.8;U.uEar.value=c.ear==='over'?1:0;U.uCurl.value=c.curl;U.uCoil.value=c.coil||0;U.uFreq.value=c.freq||0;U.uWaveA.value=c.wave||0;U.uLock.value=c.lock||0;U.uBend.value=c.bend;
  var flow=c.flow||'legacy',FL=flow!=='legacy';U.uFlow.value=FL?1:0;U.uVol.value=c.vol||0;U.uVolF.value=c.volF||0;U.uLayer.value=c.layer===undefined?0.5:c.layer;U.uGravF.value=PH.grav;U.uClumpA.value=(c.clump===undefined?0.4:c.clump)*0.9;U.uDrape.value=c.drape===undefined?1:c.drape;
  var stub=[],crown=new T.Vector3(0,4.5,-0.9),tg=new T.Vector3(),dir=new T.Vector3(),CS=0.24,gm=new Map(),GK=[],GX=[],GY=[],GZ=[],GL=[],GN=[];
  while(k<n&&tries<n*4){tries++;var s=sample(SAMP_ALL,R),hw=hairW(s.x,s.y,s.z,edAt(s)),yl=HLY;if(R()>=hw)continue;
@@ -548,7 +611,7 @@ function buildScalp(){var L=LY.scalp;disposeL(L);var c=cur,R=rng(c.seed),n=Math.
   GX[gi]+=s.p.x;GY[gi]+=s.p.y;GZ[gi]+=s.p.z;GL[gi]+=Ln;GN[gi]++;H.MISC[k*4+1]=gi;k++;
   if(f>0.15&&R()<c.stub)stub.push(s.ti,s.u,s.v,0.5+R()*0.5)}
  var G=Math.max(1,GK.length);PH.G=GK.length;
- PH.o=new Float32Array(G*6);PH.v=new Float32Array(G*6);PH.tmp=new Float32Array(G*6);PH.cf=new Float32Array(G*3);
+ PH.o=new Float32Array(G*6);PH.v=new Float32Array(G*6);PH.tmp=new Float32Array(G*6);PH.cf=new Float32Array(G*3);PH.g=new Float32Array(G*6);PH.gAny=false;
  PH.gx=new Float32Array(G);PH.gy=new Float32Array(G);PH.gz=new Float32Array(G);PH.gl=new Float32Array(G);PH.nb=new Int32Array(G*26).fill(-1);
  for(var g2=0;g2<GK.length;g2++){var cn=GN[g2]||1;PH.gx[g2]=GX[g2]/cn;PH.gy[g2]=GY[g2]/cn;PH.gz[g2]=GZ[g2]/cn;PH.gl[g2]=GL[g2]/cn;
   var key0=GK[g2],cz=(key0&127),cy=((key0>>7)&127),cx=(key0>>14),q2=0;
@@ -597,7 +660,7 @@ function updHairCols(){var h=col(cur.h),t=col(cur.t),gr=greyAmt();LY.scalp.U.uHa
  var dc=beardCol();LY.beard.U.uHair.value.copy(dc);LY.beard.U.uTip.value.copy(S.beard.link?t:dc.clone().multiplyScalar(1.3));
  var lc=col(S.lash.c);LY.lash.U.uHair.value.copy(lc);LY.lash.U.uTip.value.copy(lc);
  LY.scalp.U.uGrey.value=gr;LY.beard.U.uGrey.value=gr;LY.brow.U.uGrey.value=gr*0.7;stubColor(LY.scalp,h);SKU.hA.value.copy(h).multiplyScalar(0.85);SKU.hB.value.copy(t);SKU.stub.value=cur.stub;stubColor(LY.beard,dc)}
-function updHairMat(){var m=S.hmat;['scalp','brow','beard','lash'].forEach(function(n){var U=LY[n].U,k=n==='lash'?0.5:1;U.uShine.value=m.shine*k;U.uGloss.value=m.gloss;U.uTrans.value=m.trans})}
+function updHairMat(){var m=S.hmat;if(m.soft==null)m.soft=0.7;if(m.shadow==null)m.shadow=1;['scalp','brow','beard','lash'].forEach(function(n){var U=LY[n].U,k=n==='lash'?0.5:1;U.uShine.value=m.shine*k;U.uGloss.value=m.gloss;U.uTrans.value=m.trans;U.uSoft.value=n==='lash'?m.soft*0.4:m.soft});LU.uShD.value=14*m.shadow}
 function setHairVis(){var v=S.view.hair;for(var n in LY){if(LY[n].obj)LY[n].obj.visible=v;if(LY[n].st)LY[n].st.obj.visible=v}}
 var pend={},pendQ=0;function sched(n){pend[n]=1;if(pendQ)return;pendQ=requestAnimationFrame(function(){pendQ=0;var p=pend;pend={};if(p.scalp)buildScalp();if(p.brow)buildBrow();if(p.beard)buildBeard();if(p.lash)buildLash();stats0()})}
 
@@ -781,7 +844,7 @@ function doCut(pt,nm,cap){var cp=cap<=0.0125?LD.bl.min:Math.max(cap,LD.bl.min),r
 var ac=null,og=null,osc=null;
 function startBuzz(){var sn=$('snd');if(sn&&!sn.checked)return;try{if(!ac){ac=new(window.AudioContext||window.webkitAudioContext)();var o=ac.createOscillator(),f=ac.createBiquadFilter();og=ac.createGain();o.type='sawtooth';o.frequency.value=LD.mt.pitch;osc=o;f.type='lowpass';f.frequency.value=700;og.gain.value=0;o.connect(f);f.connect(og);og.connect(ac.destination);o.start()}if(ac.state==='suspended')ac.resume();og.gain.setTargetAtTime(0.03,ac.currentTime,0.03)}catch(e){}}
 function stopBuzz(){if(og&&ac)og.gain.setTargetAtTime(0,ac.currentTime,0.05)}
-var tpos=new T.Vector3(),tq=new T.Quaternion(),tn=new T.Vector3(0,0,1),cutting=false,auto=null,mode='orb',lastPt=null;
+var tpos=new T.Vector3(),tq=new T.Quaternion(),tn=new T.Vector3(0,0,1),cutting=false,auto=null,mode='orb',lastPt=null,combing=false,lastCb=null;
 function setPose(pt,n){var y=new T.Vector3(0,1,0);y.addScaledVector(n,-y.dot(n));if(y.lengthSq()<1e-3){y.set(0,0,-1);y.addScaledVector(n,-y.dot(n))}y.normalize();var x=new T.Vector3().crossVectors(y,n);
  tq.setFromRotationMatrix(new T.Matrix4().makeBasis(x,y,n));tpos.copy(pt).addScaledVector(n,0.03);tn.copy(n);if(!clip.visible){clip.position.copy(tpos);clip.quaternion.copy(tq);clip.visible=true}}
 function capY(y){return 0.02+0.43*sm((y-2.05)/1.75)}
@@ -794,9 +857,10 @@ function autoStep(dt){var rg=auto.r[auto.i];if(!rg){auto=null;$('auto').disabled
 /* ================= physics ================= */
 var ox=0,oy=0,pvx=0,pvy=0,cprev=new T.Vector3(),cvel=new T.Vector3();
 function physUpdate(dt,tm){
- if(!PH.on||!PH.G){HU.uPhys.value=0;return}
+ if(!PH.G){HU.uPhys.value=0;return}
+ if(!PH.on){if(PH.gDirty){phWrite(PH.g);PH.gDirty=false}HU.uPhys.value=PH.gAny?1-Math.min(0.7,(cur.freq||0)*0.06):0;return}
  HU.uPhys.value=1-Math.min(0.7,(cur.freq||0)*0.06);
- var t0=performance.now(),G2=PH.G,o=PH.o,v=PH.v,i,g2,c;
+ var t0=performance.now(),G2=PH.G,o=PH.o,v=PH.v,gm=PH.g,i,g2,c;
  var rv=new T.Vector3().setFromMatrixColumn(cam.matrix,0),uv=new T.Vector3().setFromMatrixColumn(cam.matrix,1);
  var dd=Math.max(dt,0.008),rx=ox,ry=oy;ox=oy=0;
  var tvx=pvx+(rx/dd-pvx)*0.35,tvy=pvy+(ry/dd-pvy)*0.35,ax=(tvx-pvx)/dd,ay=(tvy-pvy)/dd;pvx=tvx;pvy=tvy;
@@ -810,7 +874,7 @@ function physUpdate(dt,tm){
   var cs=(+$('bw').value)*LD.bl.w/0.3;CLIPU.value.set(clip.position.x,clip.position.y,clip.position.z,0.28*cs)}
  else CLIPU.value.w=0;
  cprev.copy(clip.position);
- var force=cact||PH.wind>0||fm>0.05||PH.shake>0;
+ var force=cact||combing||PH.gDirty||PH.wind>0||fm>0.05||PH.shake>0;PH.gDirty=false;
  if(force)PH.asleep=false;
  if(PH.asleep){PH.ms=0;return}
  var steps=Math.min(3,Math.max(1,Math.ceil(dt*120))),h=Math.min(dt,0.05)/steps,E=0;
@@ -821,8 +885,9 @@ function physUpdate(dt,tm){
    for(c=0;c<3;c++){
     var f2=F[c]+(c===0?wg:c===2?wg*0.25:0)+(ca?cf[g2*3+c]:0);
     var o1=o[b+c],o2=o[b+3+c],v1=v[b+c],v2=v[b+3+c];
-    v1+=(-kk*o1-cd*v1+0.5*kc*(o2-o1)+0.4*f2)*h;
-    v2+=(-0.6*kk*o2-cd*v2+kc*(o1-o2)+f2)*h;
+    var r1=o1-gm[b+c],r2=o2-gm[b+3+c];
+    v1+=(-kk*r1-cd*v1+0.5*kc*(r2-r1)+0.4*f2)*h;
+    v2+=(-0.6*kk*r2-cd*v2+kc*(r1-r2)+f2)*h;
     o1+=v1*h;o2+=v2*h;
     if(o1>0.9)o1=0.9;else if(o1<-0.9)o1=-0.9;if(o2>0.9)o2=0.9;else if(o2<-0.9)o2=-0.9;
     o[b+c]=o1;o[b+3+c]=o2;v[b+c]=v1;v[b+3+c]=v2}}}
@@ -830,12 +895,39 @@ function physUpdate(dt,tm){
  for(g2=0;g2<G2;g2++){var cnt=0,s6=[0,0,0,0,0,0];
   for(i=0;i<26;i++){var n2=nb[g2*26+i];if(n2<0)break;cnt++;for(c=0;c<6;c++)s6[c]+=tmp[n2*6+c]}
   if(cnt)for(c=0;c<6;c++)o[g2*6+c]+=(s6[c]/cnt-o[g2*6+c])*0.25;
-  for(c=0;c<6;c++){E+=v[g2*6+c]*v[g2*6+c]+o[g2*6+c]*o[g2*6+c]}}
+  for(c=0;c<6;c++){E+=v[g2*6+c]*v[g2*6+c]+(o[g2*6+c]-gm[g2*6+c])*(o[g2*6+c]-gm[g2*6+c])}}
  var Dt=PH.data;
  for(g2=0;g2<G2;g2++){var b2=g2*6;Dt[g2*4]=o[b2];Dt[g2*4+1]=o[b2+1];Dt[g2*4+2]=o[b2+2];Dt[(G2+g2)*4]=o[b2+3];Dt[(G2+g2)*4+1]=o[b2+4];Dt[(G2+g2)*4+2]=o[b2+5]}
  PH.tex.needsUpdate=true;
  if(!force&&E/G2<1e-6)PH.asleep=true;
  PH.ms=PH.ms*0.9+(performance.now()-t0)*0.1}
+function phWrite(o){var G2=PH.G,Dt=PH.data;for(var g2=0;g2<G2;g2++){var b2=g2*6;Dt[g2*4]=o[b2];Dt[g2*4+1]=o[b2+1];Dt[g2*4+2]=o[b2+2];Dt[(G2+g2)*4]=o[b2+3];Dt[(G2+g2)*4+1]=o[b2+4];Dt[(G2+g2)*4+2]=o[b2+5]}PH.tex.needsUpdate=true}
+/* ================= styling comb =================
+ Combing moves each guide's rest target (PH.g); the springs then hold the strands there, so the groom
+ survives head motion and wind while staying fully dynamic. */
+var combM=new T.Group(),cbDir=new T.Vector3(0,-1,0);
+(function(){var m=new T.MeshStandardMaterial({color:0x1b1d21,roughness:0.32,metalness:0.05}),sp=new T.Mesh(new T.BoxGeometry(1.04,0.16,0.05),m);sp.position.y=0.08;combM.add(sp);
+ for(var i=0;i<23;i++){var th=new T.Mesh(new T.BoxGeometry(0.02,0.3,0.032),m);th.position.set(-0.495+i*0.045,-0.15,0);combM.add(th)}})();
+combM.visible=false;scene.add(combM);
+function combPose(h){var C=S.comb,sc=C.r*2;ring.visible=true;ring.position.copy(h.p).addScaledVector(h.n,0.01);ring.lookAt(h.p.clone().add(h.n));ring.scale.setScalar(C.r);
+ var z=cbDir.clone().addScaledVector(h.n,-cbDir.dot(h.n));if(z.lengthSq()<1e-4){z.set(0,-1,0).addScaledVector(h.n,-h.n.y)}z.normalize();var x=new T.Vector3().crossVectors(h.n,z);
+ combM.quaternion.setFromRotationMatrix(new T.Matrix4().makeBasis(x,h.n,z));combM.scale.setScalar(sc);combM.position.copy(h.p).addScaledVector(h.n,0.24*sc+0.03);combM.visible=true}
+function combAt(p,dir,amt){if(!PH.G||!PH.g)return;var C=S.comb,R=C.r,R2=R*R,g=PH.g,v=PH.v,t=C.t,i,c;
+ for(i=0;i<PH.G;i++){var ex=PH.gx[i]-p.x,ey=PH.gy[i]-p.y,ez=PH.gz[i]-p.z,d2=ex*ex+ey*ey+ez*ez;if(d2>R2)continue;
+  var w=1-Math.sqrt(d2)/R;w=w*w*(3-2*w)*C.str,b=i*6;
+  var nx=(PH.gx[i]-HC.x)/(HR.x*HR.x),ny=(PH.gy[i]-HC.y)/(HR.y*HR.y),nz=(PH.gz[i]-HC.z)/(HR.z*HR.z),nl=Math.hypot(nx,ny,nz)||1;nx/=nl;ny/=nl;nz/=nl;
+  var a1=[0,0,0],a2=[0,0,0];
+  if(t==='comb'){var dn=dir.x*nx+dir.y*ny+dir.z*nz,tx=dir.x-nx*dn,ty=dir.y-ny*dn,tz=dir.z-nz*dn,dd=amt*w*1.6;a1=[tx*dd*0.55,ty*dd*0.55,tz*dd*0.55];a2=[tx*dd,ty*dd,tz*dd]}
+  else if(t==='lift'){var dl=amt*w*1.2;a1=[nx*dl,ny*dl,nz*dl];a2=[nx*dl*0.6,ny*dl*0.6,nz*dl*0.6]}
+  else if(t==='smooth'){var nb=PH.nb,cnt=0,s6=[0,0,0,0,0,0];for(var q=0;q<26;q++){var n2=nb[i*26+q];if(n2<0)break;cnt++;for(c=0;c<6;c++)s6[c]+=g[n2*6+c]}
+   if(cnt)for(c=0;c<3;c++){a1[c]=(s6[c]/cnt-g[b+c])*w*0.3;a2[c]=(s6[c+3]/cnt-g[b+3+c])*w*0.3}}
+  else for(c=0;c<3;c++){a1[c]=-g[b+c]*w*0.2;a2[c]=-g[b+3+c]*w*0.2}
+  for(c=0;c<3;c++){g[b+c]=clamp(g[b+c]+a1[c],-0.9,0.9);g[b+3+c]=clamp(g[b+3+c]+a2[c],-0.9,0.9);v[b+3+c]+=a2[c]*6}
+ }
+ PH.gAny=true;PH.gDirty=true;PH.asleep=false}
+function combMove(e){var h=hit(e);if(!h){combM.visible=ring.visible=false;return}
+ if(combing&&lastCb){var d=h.p.clone().sub(lastCb),l=d.length();if(l>1e-4){d.divideScalar(l);cbDir.lerp(d,0.5).normalize();var n=Math.max(1,Math.min(8,Math.ceil(l/(S.comb.r*0.25))));for(var s=1;s<=n;s++)combAt(lastCb.clone().lerp(h.p,s/n),d,l/n)}}
+ if(combing)lastCb=h.p;combPose(h)}
 function updPhys(){var p=S.phys;LY.scalp.U.uGravF.value=p.grav;PH.on=p.on;PH.k=p.k;PH.damp=p.damp;PH.grav=p.grav;HU.uSag.value=HU.sag0*p.grav*1.8;PH.wind=p.wind;PH.asleep=false}
 function updHairLight(){cam.updateMatrixWorld();cam.matrixWorldInverse.copy(cam.matrixWorld).invert();
  LU.uL1.value.copy(key.position).transformDirection(cam.matrixWorldInverse);LU.uL2.value.copy(rim.position).transformDirection(cam.matrixWorldInverse)}
@@ -872,17 +964,19 @@ function sculptMove(e){var h=hit(e);sculptHover(h);if(!sculpting||!h)return;if(B
 st.addEventListener('contextmenu',function(e){e.preventDefault()});
 st.addEventListener('pointerdown',function(e){if(e.target!==cv)return;st.setPointerCapture(e.pointerId);pts[e.pointerId]={x:e.clientX,y:e.clientY,b:e.button};camGoal=null;brushMod.inv=e.ctrlKey||e.altKey||e.metaKey;brushMod.smooth=e.shiftKey;
  if(mode==='clip'&&e.button===0&&!auto&&Object.keys(pts).length===1){cutting=true;lastPt=null;hover(e,true)}
- else if(mode==='sculpt'&&e.button===0&&Object.keys(pts).length===1){var h=hit(e);if(h){sculpting=true;lastSc=null;if(BR.t==='grab'&&!brushMod.smooth)grabStart(h);else sculptMove(e)}}});
-function up(e){delete pts[e.pointerId];lastD=0;if(cutting){cutting=false;lastPt=null;if(!auto)stopBuzz();commit()}if(sculpting){sculpting=false;grab=null;lastSc=null;commit()}}
+ else if(mode==='sculpt'&&e.button===0&&Object.keys(pts).length===1){var h=hit(e);if(h){sculpting=true;lastSc=null;if(BR.t==='grab'&&!brushMod.smooth)grabStart(h);else sculptMove(e)}}
+ else if(mode==='comb'&&e.button===0&&Object.keys(pts).length===1){var hc=hit(e);if(hc){combing=true;lastCb=hc.p;combPose(hc)}}});
+function up(e){delete pts[e.pointerId];lastD=0;if(cutting){cutting=false;lastPt=null;if(!auto)stopBuzz();commit()}if(sculpting){sculpting=false;grab=null;lastSc=null;commit()}if(combing){combing=false;lastCb=null}}
 st.addEventListener('pointerup',up);st.addEventListener('pointercancel',up);
-st.addEventListener('pointerleave',function(){ring.visible=false});
+st.addEventListener('pointerleave',function(){ring.visible=false;combM.visible=false});
 st.addEventListener('pointermove',function(e){var r0=cv.getBoundingClientRect();mouseN.set((e.clientX-r0.left)/r0.width*2-1,-((e.clientY-r0.top)/r0.height)*2+1);
  var p=pts[e.pointerId],ids=Object.keys(pts);
  if(mode==='clip'&&!auto&&ids.length<2)hover(e,cutting&&!!p&&p.b===0);
  if(mode==='sculpt'&&ids.length<2){brushMod.inv=e.ctrlKey||e.altKey||e.metaKey;brushMod.smooth=e.shiftKey;if(grab&&sculpting)grabMove(e);else sculptMove(e)}
- if(!p)return;if((mode==='clip'&&p.b===0||sculpting)&&ids.length<2)return;
+ if(mode==='comb'&&ids.length<2)combMove(e);
+ if(!p)return;if((mode==='clip'&&p.b===0||sculpting||combing)&&ids.length<2)return;
  var dx=e.clientX-p.x,dy=e.clientY-p.y;p.x=e.clientX;p.y=e.clientY;
- if(ids.length===2){cutting=false;sculpting=false;var a1=pts[ids[0]],b1=pts[ids[1]],dd=Math.hypot(a1.x-b1.x,a1.y-b1.y);if(lastD)dist=clamp(dist*lastD/dd,3,30);lastD=dd}
+ if(ids.length===2){cutting=false;sculpting=false;combing=false;var a1=pts[ids[0]],b1=pts[ids[1]],dd=Math.hypot(a1.x-b1.x,a1.y-b1.y);if(lastD)dist=clamp(dist*lastD/dd,3,30);lastD=dd}
  else if((p.b===2&&mode==='orb')||p.b===1||e.shiftKey){var s=dist*0.0016,r=new T.Vector3().setFromMatrixColumn(cam.matrix,0),u=new T.Vector3().setFromMatrixColumn(cam.matrix,1);tgt.addScaledVector(r,-dx*s).addScaledVector(u,dy*s)}
  else{th-=dx*0.007;ph=clamp(ph-dy*0.007,0.15,3);ox+=dx;oy+=dy}place()});
 st.addEventListener('wheel',function(e){e.preventDefault();camGoal=null;dist=clamp(dist*Math.exp(e.deltaY*0.001),3,30);place()},{passive:false});
@@ -890,9 +984,10 @@ function size(){var w=st.clientWidth,h=st.clientHeight;ren.setSize(w,h,false);ca
 addEventListener('resize',size);
 var HINTS={orb:['Drag to orbit · right-drag or Shift-drag to pan · scroll or pinch to zoom','اسحب للدوران · اسحب بالزر الأيمن أو مع Shift للتحريك · مرّر أو اقرص للتكبير'],
  sculpt:['Drag on the face to sculpt · Shift = smooth · Ctrl/Alt = invert · [ ] brush size · drag empty space to orbit','اسحب على الوجه للنحت · Shift = تنعيم · Ctrl/Alt = عكس · [ ] حجم الفرشاة · اسحب في الفراغ للدوران'],
- clip:['Hold and drag on the head to cut · right-drag to orbit · keys 1–6 select guard','اضغط واسحب على الرأس للقص · اسحب بالزر الأيمن للدوران · المفاتيح 1–6 لاختيار المشط']};
-function setMode(m){mode=m;$('tOrb').classList.toggle('on',m==='orb');$('tSculpt').classList.toggle('on',m==='sculpt');$('tClip').classList.toggle('on',m==='clip');
- if(m!=='clip'&&!auto&&!cm)clip.visible=false;if(m!=='sculpt')ring.visible=false;st.style.cursor=m==='orb'?'grab':'crosshair';var h=HINTS[m];$('hint').textContent=tx(h[0],h[1])}
+ clip:['Hold and drag on the head to cut · right-drag to orbit · keys 1–6 select guard','اضغط واسحب على الرأس للقص · اسحب بالزر الأيمن للدوران · المفاتيح 1–6 لاختيار المشط'],
+ comb:['Drag over the hair to comb it · pick Comb / Lift / Smooth / Relax in Hair › Styling comb · right-drag to orbit','اسحب فوق الشعر لتسريحه · اختر تسريح / رفع / تنعيم / إرخاء من الشعر › مشط التسريح · اسحب بالزر الأيمن للدوران']};
+function setMode(m){mode=m;$('tOrb').classList.toggle('on',m==='orb');$('tSculpt').classList.toggle('on',m==='sculpt');$('tClip').classList.toggle('on',m==='clip');$('tComb').classList.toggle('on',m==='comb');
+ if(m!=='clip'&&!auto&&!cm)clip.visible=false;if(m!=='sculpt'&&m!=='comb')ring.visible=false;if(m!=='comb'){combM.visible=false;combing=false}st.style.cursor=m==='orb'?'grab':'crosshair';var h=HINTS[m];$('hint').textContent=tx(h[0],h[1])}
 
 /* ================= undo / redo ================= */
 var UND=[],RED=[],last=null,restoring=false;
@@ -929,7 +1024,7 @@ function saveJSON(){var o={app:'HeadForge Studio Pro',v:1,level:LEVEL,S:S};var a
 function loadJSON(txt){try{var o=JSON.parse(txt);if(!o||!o.S)throw 0;var sn={s:JSON.stringify(Object.assign(JSON.parse(JSON.stringify(S)),o.S)),lv:o.level||LEVEL,sd:o.sd?unb64(o.sd,Float32Array):new Float32Array(SD.length),cs:o.cs?unb64(o.cs,Float32Array):null,cb:o.cb?unb64(o.cb,Float32Array):null};
   var forceRebuild=sn.lv===LEVEL;if(forceRebuild){S.hair={};S.brow={};S.beard={};S.lash={}}if(sn.lv!==LEVEL){SD=new Float32Array(0)}restore(sn);if(sn.sd.length===SD.length)SD.set(sn.sd);defDirty=true;commit();toast(tx('Character loaded','تم تحميل الشخصية'))}catch(e){toast(tx('Could not read that file','تعذّرت قراءة الملف'),true)}}
 function bake(L,frac){var H=L.H,U=L.U,n=H.n;if(!n||!L.obj)return null;var step=Math.max(1,Math.round(1/frac)),segs=H.segs,cnt=Math.ceil(n/step),pos=new Float32Array(cnt*(segs+1)*3),cl=new Float32Array(cnt*(segs+1)*3),q=0,hc=U.uHair.value,tc=U.uTip.value;
- var FLW=U.uFlow.value>0.5,FP=[0,0,0],clA=U.uClumpA.value,bend=U.uBend.value,curl=U.uCurl.value,sag=U.uSag.value,coil=U.uCoil.value,freq=U.uFreq.value,wa=U.uWaveA.value,wf=U.uWaveF.value,lock=U.uLock.value;
+ var GRM=L===LY.scalp&&PH.gAny&&PH.g&&PH.G?1-Math.min(0.7,(cur.freq||0)*0.06):0,FLW=U.uFlow.value>0.5,FP=[0,0,0],clA=U.uClumpA.value,bend=U.uBend.value,curl=U.uCurl.value,sag=U.uSag.value,coil=U.uCoil.value,freq=U.uFreq.value,wa=U.uWaveA.value,wf=U.uWaveF.value,lock=U.uLock.value;
  for(var i=0;i<n;i+=step){var j=i*3,Ln=H.MISC[i*4],rx=H.RT[j],ry=H.RT[j+1],rz=H.RT[j+2],dx=H.DIR[j],dy=H.DIR[j+1],dz=H.DIR[j+2],nx=H.NRM[j],ny=H.NRM[j+1],nz=H.NRM[j+2],va=H.VAR[i],c4=i*4;
   var dn=dx*nx+dy*ny+dz*nz,tx0=dx-nx*dn,ty0=dy-ny*dn,tz0=dz-nz*dn,tl=Math.hypot(tx0,ty0,tz0);if(tl>1e-3){tx0/=tl;ty0/=tl;tz0/=tl}else{tx0=dx;ty0=dy;tz0=dz}
   var cu=new T.Vector3(),ax=new T.Vector3(dx,dy,dz);cu.crossVectors(ax,Math.abs(dy)<0.9?new T.Vector3(0,1,0):new T.Vector3(1,0,0)).normalize();var cw=new T.Vector3().crossVectors(ax,cu);
@@ -939,7 +1034,8 @@ function bake(L,frac){var H=L.H,U=L.U,n=H.n;if(!n||!L.obj)return null;var step=M
    if(Ln<U.uHide.value)break;var cwt=clA*sm((t-0.15)/0.85)*sm((Ln-0.05)/0.35);px+=H.MISC[c4+2]*curl*Ln*0.3*t*t+H.CC[j]*cwt;py+=H.CC[j+1]*cwt;pz+=H.MISC[c4+3]*curl*Ln*0.3*t*t+H.CC[j+2]*cwt;
    if(coil>0){var ph0=va*40,ph2=ph0+t*Ln*freq*6.2831,rd=coil*(0.7+0.6*((va*13.7)%1)),a1=Math.cos(ph2)-Math.cos(ph0),a2=Math.sin(ph2)-Math.sin(ph0);px+=(cu.x*a1+cw.x*a2)*rd;py+=(cu.y*a1+cw.y*a2)*rd;pz+=(cu.z*a1+cw.z*a2)*rd}
    var wv=Math.sin(t*Ln*wf*6.2831+H.CL[c4])*wa*H.CL[c4+3]*sm(t/0.2),lk=lock*Ln*t*t;px+=sd.x*wv+(sd.x*H.CL[c4+1]+sd2.x*H.CL[c4+2])*lk;py+=sd.y*wv+(sd.y*H.CL[c4+1]+sd2.y*H.CL[c4+2])*lk;pz+=sd.z*wv+(sd.z*H.CL[c4+1]+sd2.z*H.CL[c4+2])*lk;
-   var m=sm((t-0.15)/0.85)*0.7,b=va*(1-0.6*sm((t-0.75)/0.25));pos[q*3]=px;pos[q*3+1]=py;pos[q*3+2]=pz;cl[q*3]=Math.min(1,(hc.r+(tc.r-hc.r)*m)*b);cl[q*3+1]=Math.min(1,(hc.g+(tc.g-hc.g)*m)*b);cl[q*3+2]=Math.min(1,(hc.b+(tc.b-hc.b)*m)*b);q++}}
+   var m=sm((t-0.15)/0.85)*0.7,b=va*(1-0.6*sm((t-0.75)/0.25));if(GRM){var gq=H.MISC[c4+1]*6,bw=Math.min(Ln,1.2)*sm((Ln-0.04)/0.36)*GRM,w1=6.75*t*t*(1-t)*bw,w2=t*t*t*bw;px+=PH.g[gq]*w1+PH.g[gq+3]*w2;py+=PH.g[gq+1]*w1+PH.g[gq+4]*w2;pz+=PH.g[gq+2]*w1+PH.g[gq+5]*w2}
+        pos[q*3]=px;pos[q*3+1]=py;pos[q*3+2]=pz;cl[q*3]=Math.min(1,(hc.r+(tc.r-hc.r)*m)*b);cl[q*3+1]=Math.min(1,(hc.g+(tc.g-hc.g)*m)*b);cl[q*3+2]=Math.min(1,(hc.b+(tc.b-hc.b)*m)*b);q++}}
  return{pos:pos,col:cl,segs:segs,cnt:cnt}}
 function exportOBJ(){var inc=$('oHair').checked,fr=(+$('oDen').value)/100,o=['# HeadForge Studio Pro export','o Head'],pa=P.array,na=N.array,ca=g.attributes.color.array,i,f=function(x){return x.toFixed(5)};
  for(i=0;i<NV;i++)o.push('v '+f(pa[i*3])+' '+f(pa[i*3+1])+' '+f(pa[i*3+2])+' '+ca[i*3].toFixed(3)+' '+ca[i*3+1].toFixed(3)+' '+ca[i*3+2].toFixed(3));
@@ -1010,10 +1106,11 @@ function buildUI(){
   '<div class="cols">'+C_('hair.h','Root','الجذر')+C_('hair.t','Tips','الأطراف')+'</div>'+R_('hmat.grey','Grey hair','الشيب',0,1,0.02,0)+
   '<div class="two">'+Btn_('regrow2','Regrow','إعادة الإنبات')+Btn_('rd','New seed','بذرة جديدة')+'</div>'+K_('view.hair','Show hair','إظهار الشعر')+
   Sec_('Flow & volume','الانسياب والحجم',Sel_('hair.flow','Combing direction','اتجاه التسريح',[['crown','Natural crown whorl','دوّامة طبيعية من التاج'],['forward','Forward fringe','غرّة للأمام'],['back','Swept back','مسرّح للخلف'],['side','Side part','فرق جانبي'],['center','Center part (curtains)','فرق في المنتصف (ستارة)'],['up','Up & back (quiff / pompadour)','للأعلى والخلف (كويف / بومبادور)'],['legacy','Classic spiky (v2)','الشائك الكلاسيكي (v2)']])+
-   R_('hair.part','Part position','موضع الفرق',-0.8,0.8,0.01)+R_('hair.vol','Volume','الحجم',0,0.4,0.005)+R_('hair.volF','Front lift (quiff)','رفعة الغرّة',0,0.6,0.01)+R_('hair.layer','Layering','الطبقات',0,1.5,0.02)+R_('hair.clump','Clumping','تجمّع الخصل',0,1,0.02)+R_('hair.oneLen','One-length cut','قصّة بطول موحّد',0,1,0.02)+R_('hair.lenVar','Length variation','تفاوت الأطوال',0,1,0.02)+R_('hair.drape','Drape onto nape','الانسدال على الرقبة',0,1.5,0.02)+Sel_('hair.bangs','Bangs','الغرّة',[['none','None','بدون'],['blunt','Blunt','مستقيمة'],['curtain','Curtain','ستارة'],['side','Side-swept','جانبية']])+R_('hair.bangLen','Bangs length','طول الغرّة',0.2,1.2,0.01),true)+
+   R_('hair.part','Part position','موضع الفرق',-0.8,0.8,0.01)+R_('hair.vol','Volume','الحجم',0,0.4,0.005)+R_('hair.volF','Front lift (quiff)','رفعة الغرّة',0,0.6,0.01)+R_('hair.layer','Layering','الطبقات',0,1.5,0.02)+R_('hair.clump','Clumping','تجمّع الخصل',0,1,0.02)+R_('hair.oneLen','One-length cut','قصّة بطول موحّد',0,1,0.02)+R_('hair.lenVar','Length variation','تفاوت الأطوال',0,1,0.02)+R_('hair.drape','Drape onto nape','الانسدال على الرقبة',0,1.5,0.02)+Sel_('hair.bangs','Bangs','الغرّة',[['none','None','بدون'],['blunt','Blunt','مستقيمة'],['curtain','Curtain','ستارة'],['side','Side-swept','جانبية']])+R_('hair.bangLen','Bangs length','طول الغرّة',0.2,1.2,0.01)+Sel_('hair.ear','Hair at the ears','الشعر عند الأذن',[['behind','Tucked behind the ear','خلف الأذن'],['over','Covering the ear','يغطي الأذن']]),true)+
+  Sec_('Styling comb (real time)','مشط التسريح (لحظي)','<p class="desc">'+sp('Drag over the hair to comb it. The groom stays put and keeps reacting to physics.','اسحب فوق الشعر لتسريحه. يبقى التسريح ثابتاً ويتفاعل مع الفيزياء.')+'</p>'+Btn_('combGo','Pick up the comb','أمسك المشط','p')+'<div style="height:8px"></div>'+Sel_('comb.t','Tool','الأداة',[['comb','Comb (direction)','تسريح (اتجاه)'],['lift','Lift (volume)','رفع (حجم)'],['smooth','Smooth','تنعيم'],['relax','Relax (undo combing)','إرخاء (إلغاء التسريح)']])+R_('comb.r','Comb size','حجم المشط',0.15,1.2,0.01)+R_('comb.str','Strength','القوة',0.1,2,0.05)+Btn_('combReset','Reset combing','إعادة ضبط التسريح'),true)+
   Sec_('Shape','الشكل',SL.map(function(s){return R_('hair.'+s[0],s[1],s[2],s[3],s[4],s[5])}).join(''))+
   Sec_('Physics (real time)','الفيزياء (لحظية)',K_('phys.on','Simulate hair','محاكاة الشعر')+R_('phys.k','Stiffness','الصلابة',40,400,5)+R_('phys.damp','Damping','التخميد',0.05,1,0.05)+R_('phys.grav','Gravity','الجاذبية',0,2,0.05)+R_('phys.wind','Wind','الرياح',0,1.5,0.05,0)+'<div class="two">'+Btn_('shk','Shake head','هزّ الرأس','p')+Btn_('stl','Settle','تهدئة')+'</div>')+
-  Sec_('Material','المادة',R_('hmat.shine','Shine','اللمعان',0,2,0.05)+R_('hmat.gloss','Gloss (highlight tightness)','حدة البريق',0.4,2,0.05)+R_('hmat.trans','Backlight translucency','الشفافية مع الإضاءة الخلفية',0,2,0.05))+
+  Sec_('Material','المادة',R_('hmat.shine','Shine','اللمعان',0,2,0.05)+R_('hmat.gloss','Gloss (highlight tightness)','حدة البريق',0.4,2,0.05)+R_('hmat.trans','Backlight translucency','الشفافية مع الإضاءة الخلفية',0,2,0.05)+R_('hmat.soft','Strand softness (thin tips)','نعومة الخصلات (أطراف رفيعة)',0,1,0.02)+R_('hmat.shadow','Self-shadowing depth','عمق الظل الذاتي',0,2,0.05))+
   Sec_('Eyebrows','الحواجب',K_('brow.on','Strand eyebrows','حواجب بخصلات')+R_('brow.dens','Density','الكثافة',0.2,2,0.05)+R_('brow.len','Hair length','طول الشعر',0.4,2,0.05)+R_('brow.thick','Thickness','السماكة',0.4,2,0.05)+R_('brow.arch','Arch','التقوّس',-0.5,1.5,0.05)+K_('brow.link','Match hair color','مطابقة لون الشعر')+'<div class="cols">'+C_('brow.c','Brow color','لون الحاجب')+'</div>',true);
  B.beard=Head_('Facial hair','شعر الوجه','Beards are strand grooms bound to the face — the clipper trims them too.','اللحى خصلات مرتبطة بالوجه — ويمكن قصّها بالماكينة أيضاً.')+
   Ch_('beard.style',[['none','Clean','حليق'],['stubble','Stubble','لحية خفيفة'],['mustache','Mustache','شارب'],['goatee','Goatee','سكسوكة'],['boxed','Short boxed','لحية قصيرة'],['full','Full beard','لحية كاملة'],['long','Long beard','لحية طويلة']])+
@@ -1048,10 +1145,10 @@ function buildUI(){
  $('panel').innerHTML=TABS.map(function(t){return'<section class="tab" data-tab="'+t[0]+'" hidden>'+B[t[0]]+'</section>'}).join('')+'<div class="tab" style="padding-top:0"><div class="note" id="st"></div></div>';
  $('vmode').innerHTML=opt('lit','Lit','مُضاء')+opt('clay','Clay','صلصال')+opt('wire','Wireframe','هيكل سلكي')+opt('topo','Lit + topology','مُضاء + الشبكة');
  $('camp').innerHTML=Object.keys(CAMS).map(function(k){return'<button data-cam="'+k+'">'+sp(CAMS[k][0],CAMS[k][1])+'</button>'}).join('');
- setT($('tOrb'),'Orbit','دوران');setT($('tSculpt'),'Sculpt','نحت');setT($('tClip'),'Clipper','الماكينة');setT($('turn'),'⟳ Turntable','⟳ دوران تلقائي');setT($('rndTop'),'🎲 Randomize','🎲 عشوائي');setT($('rB'),'Play again','العب مجدداً');setT($('rX'),'Close','إغلاق');
+ setT($('tOrb'),'Orbit','دوران');setT($('tSculpt'),'Sculpt','نحت');setT($('tClip'),'Clipper','الماكينة');setT($('tComb'),'Comb','مشط التسريح');setT($('turn'),'⟳ Turntable','⟳ دوران تلقائي');setT($('rndTop'),'🎲 Randomize','🎲 عشوائي');setT($('rB'),'Play again','العب مجدداً');setT($('rX'),'Close','إغلاق');
  $('meshL').value=String(LEVEL);bindUI()}
 function showTab(id){fadeTabOn=id==='barber';SKU.fadeShow.value=S.fade.lines&&fadeTabOn?1:0;document.querySelectorAll('.tab[data-tab]').forEach(function(s){s.hidden=s.dataset.tab!==id});document.querySelectorAll('#rail button').forEach(function(b){b.classList.toggle('on',b.dataset.tab===id)});
- if(id==='sculpt')setMode('sculpt');else if(id==='barber')setMode('clip');else if(mode!=='orb')setMode('orb');if(id==='blend')drawWheel();if(id==='skin')drawPalette();try{localStorage.setItem('hf_tab',id)}catch(e){}}
+ if(id==='sculpt')setMode('sculpt');else if(id==='barber')setMode('clip');else if(mode!=='orb'&&!(id==='hair'&&mode==='comb'))setMode('orb');if(id==='blend')drawWheel();if(id==='skin')drawPalette();try{localStorage.setItem('hf_tab',id)}catch(e){}}
 function fmt(v){return typeof v==='number'?(Math.abs(v)>=10?String(Math.round(v)):(+v.toFixed(2)).toString()):v}
 function outUpd(p){var o=document.querySelector('[data-out="'+p+'"]');if(o)o.textContent=fmt(getPath(p)||0)}
 function readEl(el){return el.type==='range'?+el.value:el.type==='checkbox'?el.checked:el.value}
@@ -1065,6 +1162,7 @@ function onCtl(p){var a=p.split('.'),top=a[0],k=a[1];
  if(top==='skin'){if(k==='mel'||k==='red')S.skin.custom='';updSkinU();if(k==='age'){defDirty=true;updHairCols()}paintDirty=true;drawPalette();return}
  if(top==='makeup'){paintDirty=true;return}
  if(top==='eyes'){updEyeMats();return}
+ if(top==='hair'&&k==='ear'){LY.scalp.U.uEar.value=cur.ear==='over'?1:0;return}
  if(top==='hair'){if(k==='h'||k==='t'){updHairCols();paintDirty=true;return}if(k==='stub'||k==='nape'||k==='front')paintDirty=true;sched('scalp');return}
  if(top==='hmat'){updHairMat();updHairCols();return}
  if(top==='brow'){if(k==='c'||k==='link'){updHairCols();return}paintDirty=true;sched('brow');return}
@@ -1092,7 +1190,7 @@ function bindUI(){var root=document.body;
   else if(d.emo){S.expr=Object.assign({},EMO[d.emo][2]);defDirty=true;syncUI();commit()}
   else if(d.anim){ANIM.mode=d.anim;ANIM.t=0;syncUI()}});
  $('undo').onclick=undo;$('redo').onclick=redo;
- $('tOrb').onclick=function(){setMode('orb')};$('tSculpt').onclick=function(){showTab('sculpt')};$('tClip').onclick=function(){showTab('barber')};
+ $('tOrb').onclick=function(){setMode('orb')};$('tSculpt').onclick=function(){showTab('sculpt')};$('tClip').onclick=function(){showTab('barber')};$('tComb').onclick=function(){showTab('hair');setMode('comb')};
  $('turn').onclick=function(){S.view.turn=!S.view.turn;applyView()};
  $('lang').onclick=function(){LANG=LANG==='ar'?'en':'ar';try{localStorage.setItem('hf_lang',LANG)}catch(e){}applyLang()};
  $('theme').onclick=function(){var r=document.documentElement;r.dataset.theme=r.dataset.theme==='light'?'dark':'light'};
@@ -1107,7 +1205,9 @@ function bindUI(){var root=document.body;
  $('regrow2').onclick=$('regrow').onclick=function(){if(auto)return;S.fade.on=false;buildScalp();buildBeard();commit()};
  $('rd').onclick=function(){cur.seed=1+Math.floor(Math.random()*999);buildScalp();syncUI();commit()};
  $('shk').onclick=function(){PH.shake=1.2;PH.asleep=false};
- $('stl').onclick=function(){if(PH.o){PH.o.fill(0);PH.v.fill(0);PH.data.fill(0);PH.tex.needsUpdate=true}PH.shake=0;PH.asleep=true};
+ $('stl').onclick=function(){if(PH.o){PH.o.set(PH.g);PH.v.fill(0);phWrite(PH.g)}PH.shake=0;PH.asleep=true};
+ $('combGo').onclick=function(){setMode('comb')};
+ $('combReset').onclick=function(){if(!PH.g)return;PH.g.fill(0);PH.gAny=false;PH.gDirty=true;PH.asleep=false};
  $('cmBtn').onclick=function(){toggleCM(!cm)};$('cmX').onclick=function(){toggleCM(false)};
  $('opts').addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;if(b.dataset.s)LD[b.dataset.s]=SM[b.dataset.s][b.dataset.k];else if(b.dataset.t)LD[b.dataset.t]=!LD[b.dataset.t];else if(b.dataset.g){$('gd').selectedIndex=+b.dataset.g;guard()}applyLD()});
  $('gd').addEventListener('change',function(){guard();buildMenu()});$('bw').addEventListener('input',function(e){$('bwv').textContent=e.target.value});$('bwv').textContent=$('bw').value;
@@ -1159,7 +1259,7 @@ function stats0(){var s=0;for(var n in LY)s+=LY[n].H.n||0;$('sbV').textContent=(
 /* ================= boot ================= */
 var ready=false;
 setupMesh(LEVEL);
-skin=new T.Mesh(g,skinMat);scene.add(skin);wire=new T.Mesh(g,wireMat);wire.visible=false;scene.add(wire);
+skin=new T.Mesh(g,skinMat);skin.castShadow=skin.receiveShadow=true;scene.add(skin);wire=new T.Mesh(g,wireMat);wire.visible=false;scene.add(wire);
 eyes=[mkEye(1),mkEye(-1)];
 setP('base');buildUI();guard();applyLD();
 buildAll();refreshAll();
@@ -1174,7 +1274,7 @@ function frame(){var dt=Math.min(clock.getDelta(),0.05),tm=clock.elapsedTime;
  if(auto)autoStep(dt);
  animStep(dt);
  if(camGoal){th+=(camGoal.th-th)*0.14;ph+=(camGoal.ph-ph)*0.14;dist+=(camGoal.dist-dist)*0.14;tgt.lerp(camGoal.t,0.14);if(Math.abs(camGoal.th-th)+Math.abs(camGoal.ph-ph)+Math.abs(camGoal.dist-dist)<0.002)camGoal=null;place()}
- if(S.view.turn&&!sculpting&&!cutting){th+=dt*0.35;ox-=dt*0.35/0.007*0.02;place()}
+ if(S.view.turn&&!sculpting&&!cutting&&!combing){th+=dt*0.35;ox-=dt*0.35/0.007*0.02;place()}
  if(cm){var fw=new T.Vector3();cam.getWorldDirection(fw);var rg=new T.Vector3().setFromMatrixColumn(cam.matrix,0),uv=new T.Vector3().setFromMatrixColumn(cam.matrix,1);
   clip.position.copy(cam.position).addScaledVector(fw,7).addScaledVector(rg,-1.7).addScaledVector(uv,-1.3);
   clip.quaternion.copy(cam.quaternion).multiply(new T.Quaternion().setFromEuler(new T.Euler(0,Math.sin(tm*0.8)*0.8,0)));clip.scale.setScalar(1.1);tilt.rotation.z=0;clip.visible=true}
@@ -1182,7 +1282,7 @@ function frame(){var dt=Math.min(clock.getDelta(),0.05),tm=clock.elapsedTime;
   if(cutting||auto){clip.position.addScaledVector(tn,Math.sin(tm*140)*0.006*sc*LD.mt.vib);tilt.rotation.z=Math.sin(tm*95)*0.012*LD.mt.vib}else tilt.rotation.z=0}
  if(G.on){G.t-=dt;G.last+=dt;if(G.last>0.45){G.last=0;if(G.dirty){G.dirty=false;G.acc=accuracy();drawMini()}}hud();if(G.t<=0)gEnd()}
  if(defDirty)applyDeform();if(paintDirty)paintSkin();
- updEyes(dt);stepP(dt);for(var n in LY){var L=LY[n];if(L.dirty&&L.obj){L.obj.geometry.attributes.aMisc.needsUpdate=true;L.dirty=false;shortDirty=true}}if(shortDirty&&tm-shortT>0.1){shortT=tm;updShort()}physUpdate(dt,tm);updHairLight();
+ updEyes(dt);stepP(dt);for(var n in LY){var L=LY[n];if(L.dirty&&L.obj){L.obj.geometry.attributes.aMisc.needsUpdate=true;L.dirty=false;shortDirty=true}}if(shortDirty&&tm-shortT>0.1){shortT=tm;updShort()}physUpdate(dt,tm);updHairLight();if(key.shadow.map){LU.uShMap.value=key.shadow.map.texture;LU.uShTx.value=1/key.shadow.mapSize.x;LU.uShRng.value=key.shadow.camera.far-key.shadow.camera.near;LU.uShOn.value=S.hmat.shadow>0?1:0}
  ren.render(scene,cam);
  fpsA+=dt;fpsN++;if(fpsA>0.5){$('sbF').textContent=Math.round(fpsN/fpsA)+' fps';$('phn').textContent=PH.G?(PH.G+tx(' guides · sim ',' دليل · محاكاة ')+PH.ms.toFixed(2)+' ms'+(PH.asleep?tx(' · asleep',' · ساكن'):'')):'';fpsA=fpsN=0}}
 })();
