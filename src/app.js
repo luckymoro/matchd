@@ -42,7 +42,7 @@ var S={
  tie:{mode:'none',sel:'top',u:[0,0.62,-0.78],tight:0.75,spread:0.4,bunR:0.16,band:'#151515'},
  barb:{tool:'clipper',sym:false,lever:0,flick:0,slen:0.6,thin:0.35,lw:0.035,straight:false},
  ear:{margin:0.08,sb:2.4,back:2.35,taper:0.85,slope:0.9,guides:false},
- light:{rig:'cinema',rot:0,int:1,expo:0.68,tone:'aces',bg:'rig',bgc:'#202226'},
+ light:{rig:'barber',rot:0,int:1,expo:0.85,tone:'aces',bg:'rig',bgc:'#202226',stage:'barber',mirror:true,props:true,stint:1},
  view:{mode:'lit',focal:42,hair:true,turn:false,guides:false}
 };
 var BR={t:'draw',r:0.22,s:0.5,sym:true,inv:false};
@@ -1007,6 +1007,7 @@ function updSkinU(){var k=S.skin;skApply();SKU.bump.value=k.bump;SKU.oil.value=k
 
 /* ================= lighting rigs ================= */
 var RIGS={
+ barber:{en:'Barber shop',ar:'صالون حلاقة',k:[-5,9,8,'#ffe1bd',1.05],r:[6,5,-7,'#ffcf9a',0.5],f:[7,1,6,'#cfdcff',0.12],h:['#fff0dd','#6b4426',0.38],sky:['#0a0705','#3a2a1c'],bg:['#1a120c','#0a0705']},
  cinema:{en:'Cinematic (AAA)',ar:'سينمائي (AAA)',k:[-4,6.5,7,'#fff0e0',1.05],r:[5.5,4,-6,'#cfe0ff',0.32],f:[5,0,6,'#ffe9dc',0.07],h:['#f2ece6','#1f1a16',0.22],sky:['#050505','#2b2b2d'],bg:['#2c2d2f','#141516']},
  studio:{en:'Studio',ar:'استوديو',k:[4,7,6,'#fff2e0',0.7],r:[-6,4,-5,'#9ec4ff',0.35],f:[-5,1,6,'#ffffff',0],h:['#ffffff','#5a4a3c',0.35],sky:['#0d0b0a','#54595f'],bg:['#3b3f45','#151619']},
  portrait:{en:'Rembrandt',ar:'رامبرانت',k:[6,6,3,'#ffe6c8',0.85],r:[-5,5,-6,'#bcd2ff',0.25],f:[-6,0,4,'#ffffff',0.05],h:['#fff4e6','#2a2018',0.22],sky:['#060504','#2f2a25'],bg:['#2a2420','#0b0a09']},
@@ -1027,11 +1028,110 @@ function applyLight(){var L=S.light,r=RIGS[L.rig]||RIGS.studio,a=L.rot*Math.PI/1
  var s0=col(r.sky[0]),s1=col(r.sky[1]),sp2=sky.geometry.attributes.position,sc=sky.geometry.attributes.color;for(var i=0;i<sp2.count;i++){var t=(sp2.getY(i)/50+1)/2;sc.setXYZ(i,s0.r+(s1.r-s0.r)*t,s0.g+(s1.g-s0.g)*t,s0.b+(s1.b-s0.b)*t)}sc.needsUpdate=true;
  [[PKey,r.k,5],[PRim,r.r,3],[PFill,r.f,2]].forEach(function(q){var v=rotY(a,q[1]).normalize().multiplyScalar(40);q[0].position.copy(v);q[0].lookAt(0,0,0);q[0].material.color.set(q[1][3]).multiplyScalar(q[1][4]*q[2]*I+0.001)});
  PTop.position.set(0,45,0);PTop.lookAt(0,0,0);PTop.material.color.set(r.h[0]).multiplyScalar(1.5*r.h[2]*I);
- if(envRT)envRT.dispose();envRT=pm.fromScene(es2,0.04);scene.environment=envRT.texture;
+ stgApply();stgEnvPower();var stageOn=STG.visible;if(envRT)envRT.dispose();envRT=pm.fromScene(stageOn?es3:es2,0.04);scene.environment=envRT.texture;
  ren.toneMappingExposure=L.expo;var tm=TONEM[L.tone]||T.LinearToneMapping;if(tm!==lastTone){ren.toneMapping=tm;lastTone=tm;scene.traverse(function(o){if(o.material)[].concat(o.material).forEach(function(m){m.needsUpdate=true})});clayMat.needsUpdate=skinMat.needsUpdate=true}
  var x=bgCv.getContext('2d'),gr=x.createLinearGradient(0,0,0,256);
- if(L.bg==='trans'){scene.background=null;st.classList.add('trans')}else{st.classList.remove('trans');var c1=L.bg==='solid'?L.bgc:L.bg==='green'?'#00b140':r.bg[0],c2=L.bg==='solid'?L.bgc:L.bg==='green'?'#00b140':r.bg[1];gr.addColorStop(0,c1);gr.addColorStop(1,c2);x.fillStyle=gr;x.fillRect(0,0,2,256);bgTex.needsUpdate=true;scene.background=bgTex}}
+ if(L.bg==='trans'){scene.background=null;st.classList.add('trans')}else if(stageOn){st.classList.remove('trans');scene.background=new T.Color(0x0a0705)}else{st.classList.remove('trans');var c1=L.bg==='solid'?L.bgc:L.bg==='green'?'#00b140':r.bg[0],c2=L.bg==='solid'?L.bgc:L.bg==='green'?'#00b140':r.bg[1];gr.addColorStop(0,c1);gr.addColorStop(1,c2);x.fillStyle=gr;x.fillRect(0,0,2,256);bgTex.needsUpdate=true;scene.background=bgTex}}
 function applyView(){var v=S.view;skin.material=v.mode==='clay'||v.mode==='wire'?clayMat:skinMat;wire.visible=v.mode==='wire'||v.mode==='topo';setHairVis();cam.fov=2*Math.atan(12/v.focal)*180/Math.PI;cam.updateProjectionMatrix();$('turn').classList.toggle('p',!!v.turn)}
+
+/* ================= barber shop stage =================
+ A procedural barber shop around the head: checker floor, marble and wood walls, shelves, neon sign, barber pole,
+ ceiling lights, a real-time mirror, a tufted-leather chair and a draped cape. Room surfaces are lit by the same rig as
+ the head; reflections come from a matching room environment (env scene es3) so skin, eyes and the clipper pick up
+ the real light panels and the mirror wall. */
+var STG=new T.Group();STG.name='stage';scene.add(STG);
+var stg={built:false,pole:null,mirror:null,props:new T.Group(),lamps:[]};
+function cnv(w,h){var c=document.createElement('canvas');c.width=w;c.height=h;return c}
+function ctex(c,rx,ry){var t=new T.CanvasTexture(c);t.wrapS=t.wrapT=T.RepeatWrapping;t.anisotropy=8;if(rx)t.repeat.set(rx,ry||rx);return t}
+function stgChecker(){var c=cnv(256,256),x=c.getContext('2d');for(var i=0;i<2;i++)for(var j=0;j<2;j++){x.fillStyle=(i+j)%2?'#0f0e0d':'#e6dfd1';x.fillRect(i*128,j*128,128,128)}
+ var im=x.getImageData(0,0,256,256),d=im.data,R=rng(3);for(var k=0;k<d.length;k+=4){var n=(R()-0.5)*10;d[k]+=n;d[k+1]+=n;d[k+2]+=n}x.putImageData(im,0,0);x.strokeStyle='rgba(30,25,20,.55)';x.lineWidth=3;x.strokeRect(0,0,256,256);x.beginPath();x.moveTo(128,0);x.lineTo(128,256);x.moveTo(0,128);x.lineTo(256,128);x.stroke();return ctex(c,12,12)}
+function stgMarble(){var N=512,c=cnv(N,N),x=c.getContext('2d'),im=x.createImageData(N,N),d=im.data;
+ for(var j=0;j<N;j++)for(var i=0;i<N;i++){var u=i/N*4,v=j/N*4,n=vn1(u*2,v*2,0,3)+0.5*vn1(u*5,v*5,0,4),vein=Math.pow(1-Math.abs(Math.sin((u*1.7+v*0.8+n*3.2)*3.1416)),18),vein2=Math.pow(1-Math.abs(Math.sin((u*0.6-v*1.3+n*2.4)*3.1416)),30),b=24+n*14,q=(j*N+i)*4,w=vein*95+vein2*60;
+  d[q]=b+w;d[q+1]=b*0.98+w*0.97;d[q+2]=b*0.96+w*0.93;d[q+3]=255}x.putImageData(im,0,0);return ctex(c,3,1.4)}
+function stgWood(){var W=512,H=512,c=cnv(W,H),x=c.getContext('2d'),im=x.createImageData(W,H),d=im.data,pl=8,R=rng(11),tone=[];for(var k=0;k<pl;k++)tone.push(0.75+R()*0.5);
+ for(var j=0;j<H;j++)for(var i=0;i<W;i++){var p=Math.floor(i/(W/pl)),g=Math.sin(((i%(W/pl))*0.18+vn1(i*0.01,j*0.012,p*3,6)*9+p*7)),n=vn1(i*0.04,j*0.01,p,8),b=(0.5+0.18*g+0.25*n)*tone[p],edge=(i%(W/pl))<2?0.4:1,q=(j*W+i)*4;
+  d[q]=70*b*edge+18;d[q+1]=40*b*edge+10;d[q+2]=22*b*edge+6;d[q+3]=255}x.putImageData(im,0,0);return ctex(c,2,1)}
+function stgLeather(){var N=512,G=46,Q=256,h=new Float32Array(N*N),cr=new Float32Array(N*N),pts=new Float32Array(G*G*2),R=rng(21),i,j;
+ for(i=0;i<G*G;i++){pts[2*i]=i%G+R();pts[2*i+1]=Math.floor(i/G)+R()}
+ function mod(a,b){return((a%b)+b)%b}
+ for(j=0;j<N;j++)for(i=0;i<N;i++){var u=i/N*G,v=j/N*G,cx=Math.floor(u),cy=Math.floor(v),f1=9,f2=9;
+  for(var dy=-1;dy<=1;dy++)for(var dx=-1;dx<=1;dx++){var gx=cx+dx,gy=cy+dy,wx=Math.floor(gx/G),wy=Math.floor(gy/G),k=mod(gy,G)*G+mod(gx,G),px=pts[2*k]+wx*G-u,py=pts[2*k+1]+wy*G-v,dd=Math.hypot(px,py);if(dd<f1){f2=f1;f1=dd}else if(dd<f2)f2=dd}
+  var o=j*N+i,c0=sm((f2-f1)/0.2);cr[o]=c0;var H=c0*0.65+(1-f1)*0.25+(R()-0.5)*0.05;
+  var a=mod(i+j,Q),b=mod(i-j,Q),da=Math.min(a,Q-a),db=Math.min(b,Q-b),dm=Math.min(da,db);H=H*0.3+sm(dm/36)*1.1;if(dm<5)H-=0.4;h[o]=H}
+ var A=cnv(N,N),Nn=cnv(N,N),Rr=cnv(N,N),ia=A.getContext('2d').createImageData(N,N),inn=Nn.getContext('2d').createImageData(N,N),ir=Rr.getContext('2d').createImageData(N,N);
+ for(j=0;j<N;j++)for(i=0;i<N;i++){var o2=j*N+i,q=o2*4,hx=h[j*N+mod(i-1,N)]-h[j*N+mod(i+1,N)],hy=h[mod(j-1,N)*N+i]-h[mod(j+1,N)*N+i],nx=hx*2.6,ny=hy*2.6,l=Math.hypot(nx,ny,1);
+  inn.data[q]=(nx/l*0.5+0.5)*255;inn.data[q+1]=(ny/l*0.5+0.5)*255;inn.data[q+2]=(1/l*0.5+0.5)*255;inn.data[q+3]=255;
+  var k2=0.7+0.4*cr[o2];ia.data[q]=34*k2;ia.data[q+1]=17*k2;ia.data[q+2]=13*k2;ia.data[q+3]=255;var rg=(0.4+(1-cr[o2])*0.3)*255;ir.data[q]=0;ir.data[q+1]=Math.min(255,rg);ir.data[q+2]=0;ir.data[q+3]=255}
+ A.getContext('2d').putImageData(ia,0,0);Nn.getContext('2d').putImageData(inn,0,0);Rr.getContext('2d').putImageData(ir,0,0);
+ return{map:ctex(A,1,1),normalMap:ctex(Nn,1,1),roughnessMap:ctex(Rr,1,1)}}
+function stgPole(){var c=cnv(64,256),x=c.getContext('2d');x.fillStyle='#f4efe6';x.fillRect(0,0,64,256);var cols=['#b3202a','#1f3f8f'];
+ for(var k=-2;k<10;k++){x.fillStyle=cols[((k%2)+2)%2];x.beginPath();x.moveTo(0,k*64);x.lineTo(64,k*64-32);x.lineTo(64,k*64+0);x.lineTo(0,k*64+32);x.closePath();x.fill()}
+ var t=ctex(c,1,1);t.wrapS=T.RepeatWrapping;return t}
+function stgSign(){var c=cnv(1024,256),x=c.getContext('2d');x.clearRect(0,0,1024,256);x.textAlign='center';x.textBaseline='middle';x.font='700 150px "Arial Black",Impact,sans-serif';
+ x.shadowColor='#ff4a8a';x.shadowBlur=46;x.fillStyle='#ff9bc0';x.fillText('BARBER',512,118);x.shadowBlur=16;x.fillStyle='#fff';x.fillText('BARBER',512,118);
+ x.shadowColor='#4ac8ff';x.shadowBlur=26;x.strokeStyle='#8fe0ff';x.lineWidth=7;x.strokeRect(36,30,952,196);var t=new T.CanvasTexture(c);t.anisotropy=8;return t}
+function stgGlow(){var c=cnv(128,128),x=c.getContext('2d'),g=x.createRadialGradient(64,64,0,64,64,64);g.addColorStop(0,'rgba(255,225,170,1)');g.addColorStop(0.25,'rgba(255,190,110,.45)');g.addColorStop(1,'rgba(255,170,90,0)');x.fillStyle=g;x.fillRect(0,0,128,128);return new T.CanvasTexture(c)}
+function stgBox(w,h,d,mat,x,y,z){var m=new T.Mesh(new T.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);return m}
+function buildStage(){if(stg.built)return;stg.built=true;
+ var FY=-10,CY=18,RX=30,ZB=-26,ZF=34,add=function(o){STG.add(o);return o};
+ var leather=stgLeather(),lm=new T.MeshPhysicalMaterial({map:leather.map,normalMap:leather.normalMap,roughnessMap:leather.roughnessMap,roughness:1,metalness:0,clearcoat:0.55,clearcoatRoughness:0.28,sheen:new T.Color(0x6a3a28),envMapIntensity:1.1});
+ lm.normalScale.set(1.1,1.1);[leather.map,leather.normalMap,leather.roughnessMap].forEach(function(t){t.repeat.set(3,3)});
+ var chrome=new T.MeshStandardMaterial({color:0xdfe3e8,metalness:1,roughness:0.12,envMapIntensity:1.2}),black=new T.MeshStandardMaterial({color:0x121110,roughness:0.55,metalness:0.2});
+ var marble=stgMarble(),wood=stgWood(),mMarble=new T.MeshStandardMaterial({map:marble,roughness:0.28,metalness:0.1,envMapIntensity:0.8}),mWood=new T.MeshStandardMaterial({map:wood,roughness:0.55,metalness:0}),
+  mFloor=new T.MeshStandardMaterial({map:stgChecker(),roughness:0.14,metalness:0.05,envMapIntensity:0.9}),mCeil=new T.MeshStandardMaterial({color:0x2a2420,roughness:0.9});
+ var fl=add(new T.Mesh(new T.PlaneGeometry(2*RX,ZF-ZB),mFloor));fl.rotation.x=-Math.PI/2;fl.position.set(0,FY,(ZF+ZB)/2);
+ var ce=add(new T.Mesh(new T.PlaneGeometry(2*RX,ZF-ZB),mCeil));ce.rotation.x=Math.PI/2;ce.position.set(0,CY,(ZF+ZB)/2);
+ var wl=add(new T.Mesh(new T.PlaneGeometry(ZF-ZB,CY-FY),mWood));wl.rotation.y=Math.PI/2;wl.position.set(-RX,(CY+FY)/2,(ZF+ZB)/2);wood.repeat.set(3,1);
+ var wr=add(new T.Mesh(new T.PlaneGeometry(ZF-ZB,CY-FY),mMarble));wr.rotation.y=-Math.PI/2;wr.position.set(RX,(CY+FY)/2,(ZF+ZB)/2);
+ var wb=add(new T.Mesh(new T.PlaneGeometry(2*RX,CY-FY),mWood.clone()));wb.material.map=wood.clone();wb.material.map.needsUpdate=true;wb.material.map.repeat.set(5,1);wb.position.set(0,(CY+FY)/2,ZB);
+ var wf=add(new T.Mesh(new T.PlaneGeometry(2*RX,CY-FY),mMarble));wf.rotation.y=Math.PI;wf.position.set(0,(CY+FY)/2,ZF);
+ // wall details: marble wainscot rail, frames
+ add(stgBox(2*RX,0.5,0.5,chrome,0,-3.2,ZB+0.25));add(stgBox(2*RX,0.5,0.5,chrome,0,-3.2,ZF-0.25));
+ // back wall: lit shelves with bottles under a neon sign
+ var shelfM=new T.MeshStandardMaterial({color:0x1b1410,roughness:0.5,metalness:0.1}),bk=add(stgBox(26,12.5,0.5,new T.MeshStandardMaterial({color:0x0e0b09,roughness:0.9}),0,5.3,ZB+0.3));
+ var glassCols=[0xc9822b,0x2f7a4f,0x2b5fa6,0xd8d2c4,0x8a2b2b],R=rng(31);
+ for(var sy=0;sy<3;sy++){var y0=-0.4+sy*4.1;add(stgBox(24,0.35,1.4,shelfM,0,y0,ZB+1.1));
+  for(var bi=0;bi<18;bi++){var bh=1.4+R()*1.4,col=glassCols[Math.floor(R()*glassCols.length)],bt=new T.Mesh(new T.CylinderGeometry(0.28+R()*0.1,0.32+R()*0.1,bh,12),new T.MeshStandardMaterial({color:col,roughness:0.08,metalness:0.2,emissive:col,emissiveIntensity:0.12,transparent:true,opacity:0.88,envMapIntensity:1.4}));bt.position.set(-11+bi*1.3+R()*0.3,y0+0.18+bh/2,ZB+1.1+(R()-0.5)*0.3);add(bt)}
+  var strip=add(new T.Mesh(new T.PlaneGeometry(24,0.14),new T.MeshBasicMaterial({color:new T.Color(1.0,0.7,0.35).multiplyScalar(2.2)})));strip.position.set(0,y0+3.55,ZB+0.8)}
+ var sg=add(new T.Mesh(new T.PlaneGeometry(14,3.5),new T.MeshBasicMaterial({map:stgSign(),transparent:true,toneMapped:false,depthWrite:false})));sg.position.set(0,13.6,ZB+0.6);
+ // ceiling lights with glow
+ for(var li=0;li<4;li++)for(var lj=0;lj<3;lj++){var lx=-18+li*12,lz=-14+lj*14,disc=add(new T.Mesh(new T.CircleGeometry(0.9,24),new T.MeshBasicMaterial({color:new T.Color(1.0,0.82,0.55).multiplyScalar(3),toneMapped:false})));disc.rotation.x=Math.PI/2;disc.position.set(lx,CY-0.05,lz);
+  var gl=new T.Sprite(new T.SpriteMaterial({map:stgGlow(),transparent:true,depthWrite:false,blending:T.AdditiveBlending,opacity:0.55,toneMapped:false}));gl.scale.set(7,7,1);gl.position.set(lx,CY-0.8,lz);add(gl);stg.lamps.push(gl)}
+ // mirror on the front wall (faces the chair)
+ var mw=24,mh=13,mir;if(T.Reflector){mir=new T.Reflector(new T.PlaneGeometry(mw,mh),{textureWidth:1024,textureHeight:560,color:0xb8b8b8,clipBias:0.003})}else mir=new T.Mesh(new T.PlaneGeometry(mw,mh),new T.MeshStandardMaterial({color:0x9a9a9a,metalness:1,roughness:0.03,envMapIntensity:1.4}));
+ mir.rotation.y=Math.PI;mir.position.set(0,3.6,ZF-0.35);add(mir);stg.mirror=mir;
+ add(stgBox(mw+0.9,0.45,0.5,chrome,0,3.6+mh/2+0.2,ZF-0.5));add(stgBox(mw+0.9,0.45,0.5,chrome,0,3.6-mh/2-0.2,ZF-0.5));add(stgBox(0.45,mh,0.5,chrome,-mw/2-0.2,3.6,ZF-0.5));add(stgBox(0.45,mh,0.5,chrome,mw/2+0.2,3.6,ZF-0.5));
+ // wall frames on the right
+ for(var fi=0;fi<3;fi++){var fr=add(stgBox(0.35,4.2,3.2,black,RX-0.25,6,-14+fi*8)),pic=add(stgBox(0.1,3.6,2.6,new T.MeshStandardMaterial({color:[0x6b5a46,0x45505a,0x5a4040][fi],roughness:0.8}),RX-0.46,6,-14+fi*8))}
+ // barber pole
+ var pt=stgPole(),pm2=new T.MeshStandardMaterial({map:pt,roughness:0.2,metalness:0.1,emissive:0x331111,emissiveIntensity:0.15,envMapIntensity:1.1}),pole=add(new T.Mesh(new T.CylinderGeometry(0.85,0.85,8.6,28),pm2));pole.position.set(-23,-4.4,-20);stg.pole=pt;
+ var pb=add(new T.Mesh(new T.CylinderGeometry(1.0,1.0,0.7,28),chrome));pb.position.set(-23,-9.2,-20);var pc=add(new T.Mesh(new T.SphereGeometry(1.0,24,16),chrome));pc.position.set(-23,0.4,-20);
+ // chair + cape (props)
+ var PR=stg.props;STG.add(PR);
+ function pa(o){PR.add(o);return o}
+ var seat=pa(stgBox(6.6,1.3,6.4,lm,0,-7.1,-1.6));seat.castShadow=false;
+ pa(stgBox(6.6,9.2,1.4,lm,0,-3.4,-4.4));                         // back
+ pa(stgBox(4.2,1.4,0.9,lm,0,0.35,-3.9));                          // headrest pad (below the nape)
+ pa(stgBox(0.5,2.6,0.5,chrome,0,-0.9,-4.1));
+ [-1,1].forEach(function(sx){pa(stgBox(0.9,0.7,5.2,lm,sx*3.9,-5.0,-1.8));pa(stgBox(0.34,2.4,0.34,chrome,sx*3.9,-6.4,-1.0))});
+ pa(stgBox(5.2,0.55,3.2,black,0,-9.2,3.0));pa(stgBox(0.4,1.5,0.4,chrome,0,-8.4,1.6));
+ var col=pa(new T.Mesh(new T.CylinderGeometry(0.7,0.7,1.9,24),chrome));col.position.set(0,-8.4,-1.6);var base=pa(new T.Mesh(new T.CylinderGeometry(2.9,3.4,0.8,32),chrome));base.position.set(0,-9.6,-1.6);
+ // cape: draped lathe (elliptic top over the shoulders, wide skirt), with folds
+ var pts=[[1.3,1.0],[1.75,0.75],[2.25,0.45],[2.95,-0.4],[3.45,-2.2],[3.75,-4.6],[3.95,-7.6],[4.1,-9.7]].map(function(p){return new T.Vector2(p[0],p[1])}),cg=new T.LatheGeometry(pts,72),cp=cg.attributes.position;
+ for(var vi=0;vi<cp.count;vi++){var cx2=cp.getX(vi),cz2=cp.getZ(vi),cy2=cp.getY(vi),ang=Math.atan2(cz2,cx2),dep=clamp((0.9-cy2)/6,0,1),fold=1+0.045*Math.sin(ang*9+cy2*0.6)*dep+0.02*Math.sin(ang*17-cy2)*dep;cp.setXYZ(vi,cx2*fold,cy2,(cz2*fold)*(0.92+0.1*dep))}
+ cg.computeVertexNormals();var capeM=new T.MeshStandardMaterial({color:0x121214,roughness:0.88,metalness:0,side:T.DoubleSide,envMapIntensity:0.5}),cape=pa(new T.Mesh(cg,capeM));cape.position.set(0,0,-0.9);cape.castShadow=true;cape.receiveShadow=true;
+ var collar=pa(new T.Mesh(new T.TorusGeometry(1.3,0.09,10,48),new T.MeshStandardMaterial({color:0xf2eee6,roughness:0.9})));collar.rotation.x=Math.PI/2;collar.position.set(0,1.0,-0.9);collar.scale.set(1,1,0.95);
+ STG.traverse(function(o){if(o.isMesh&&o.material&&o.material.envMapIntensity===undefined)return})}
+// room environment for reflections: emissive ceiling panels, bright mirror wall, warm back wall and checker floor, as plain colours
+var es3=new T.Scene();(function(){var inv=new T.Mesh(new T.SphereGeometry(60,32,16),new T.MeshBasicMaterial({side:T.BackSide,vertexColors:true})),ps=inv.geometry.attributes.position,cc=new Float32Array(ps.count*3);
+ for(var i=0;i<ps.count;i++){var t=(ps.getY(i)/60+1)/2,r=0.05+0.1*t,g=0.04+0.07*t,b=0.035+0.05*t;cc[i*3]=r;cc[i*3+1]=g;cc[i*3+2]=b}inv.geometry.setAttribute('color',new T.BufferAttribute(cc,3));es3.add(inv);
+ function pn(w,h,c,x,y,z,ry,rx){var m=new T.Mesh(new T.PlaneGeometry(w,h),new T.MeshBasicMaterial({color:c,side:T.DoubleSide}));m.position.set(x,y,z);m.rotation.y=ry||0;m.rotation.x=rx||0;es3.add(m);return m}
+ es3.userData.k=[];[-18,-6,6,18].forEach(function(x){[-14,0,14].forEach(function(z){es3.userData.k.push(pn(2.4,2.4,new T.Color(1,0.84,0.58),x,17.9,z,0,Math.PI/2))})});
+ es3.userData.mir=pn(24,13,new T.Color(0.62,0.6,0.58),0,3.6,33,Math.PI);pn(60,28,new T.Color(0.12,0.08,0.05),-29.5,4,4,Math.PI/2);pn(60,28,new T.Color(0.05,0.05,0.055),29.5,4,4,-Math.PI/2);pn(60,28,new T.Color(0.2,0.12,0.06),0,4,-25.5,0);
+ pn(60,60,new T.Color(0.09,0.085,0.08),0,-9.9,4,0,-Math.PI/2)})();
+function stgEnvPower(){var p=(S.light.stint==null?1:S.light.stint)*5.5;es3.userData.k.forEach(function(m){m.material.color.setRGB(1,0.84,0.58).multiplyScalar(p)});es3.userData.mir.material.color.setRGB(0.62,0.6,0.58).multiplyScalar(0.5+0.5*(S.light.stint==null?1:S.light.stint))}
+function stgApply(){var L=S.light,on=L.stage==='barber'&&L.bg!=='trans'&&L.bg!=='green';if(on)buildStage();STG.visible=on;if(on){stg.props.visible=L.props!==false;if(stg.mirror)stg.mirror.visible=L.mirror!==false;var p=L.stint==null?1:L.stint;stg.lamps.forEach(function(g){g.material.opacity=0.55*p})}}
+function stgTick(dt){if(!STG.visible||!stg.pole)return;stg.pole.offset.y=(stg.pole.offset.y+dt*0.12)%1}
 
 /* ================= clipper (barber tools) ================= */
 var clip=new T.Group(),tilt=new T.Group();clip.add(tilt);tilt.rotation.x=0.5;
@@ -1264,8 +1364,8 @@ function sculptHover(h){if(!h){ring.visible=false;return}ring.visible=true;ring.
 /* ================= orbit camera / input ================= */
 var tgt=new T.Vector3(0,2.8,-0.2),th=0.55,ph=1.42,dist=9.5,d0={th:th,ph:ph,dist:dist,t:tgt.clone()},camGoal=null;
 function place(){cam.position.set(tgt.x+dist*Math.sin(ph)*Math.sin(th),tgt.y+dist*Math.cos(ph),tgt.z+dist*Math.sin(ph)*Math.cos(th));cam.lookAt(tgt)}
-var CAMS={front:['Front','أمامي',0,1.48,9.5],q34:['¾','¾',0.75,1.45,9.5],side:['Profile','جانبي',1.57,1.48,9.5],back:['Back','خلفي',3.14159,1.45,9.5],top:['Top','علوي',0.4,0.45,9.5],close:['Close-up','قريب',0.3,1.45,5.2]};
-function goCam(k){var c=CAMS[k];var d=c[2]-th;d=Math.atan2(Math.sin(d),Math.cos(d));camGoal={th:th+d,ph:c[3],dist:c[4],t:k==='close'?new T.Vector3(0,2.75,0.5):d0.t.clone()}}
+var CAMS={front:['Front','أمامي',0,1.48,9.5],q34:['¾','¾',0.75,1.45,9.5],side:['Profile','جانبي',1.57,1.48,9.5],back:['Back','خلفي',3.14159,1.45,9.5],top:['Top','علوي',0.4,0.45,9.5],close:['Close-up','قريب',0.3,1.45,5.2],room:['Room','الغرفة',0.55,1.4,27]};
+function goCam(k){var c=CAMS[k];var d=c[2]-th;d=Math.atan2(Math.sin(d),Math.cos(d));camGoal={th:th+d,ph:c[3],dist:c[4],t:k==='close'?new T.Vector3(0,2.75,0.5):k==='room'?new T.Vector3(0,0.5,-1):d0.t.clone()}}
 var pts={},lastD=0,rc=new T.Raycaster();
 function hit(e){var r=cv.getBoundingClientRect();rc.setFromCamera(new T.Vector2((e.clientX-r.left)/r.width*2-1,-((e.clientY-r.top)/r.height)*2+1),cam);var h=rc.intersectObject(skin)[0];if(!h)return null;var n=h.face.normal.clone();if(n.dot(rc.ray.direction)>0)n.negate();return{p:h.point.clone(),n:n}}
 function hover(e,cut){var h=hit(e);if(!h){if(!cut)clip.visible=false;return}if(cut&&lnS){setPose(h.p,h.n);lnPrevSet(lnS.p,h.p);return}setPose(h.p,h.n);
@@ -1290,10 +1390,10 @@ st.addEventListener('pointermove',function(e){var r0=cv.getBoundingClientRect();
  if(mode==='groom'&&ids.length<2)groomMove(e);
  if(!p)return;if((mode==='clip'&&p.b===0||sculpting||combing||grooming)&&ids.length<2)return;
  var dx=e.clientX-p.x,dy=e.clientY-p.y;p.x=e.clientX;p.y=e.clientY;
- if(ids.length===2){cutting=false;sculpting=false;combing=false;grooming=false;var a1=pts[ids[0]],b1=pts[ids[1]],dd=Math.hypot(a1.x-b1.x,a1.y-b1.y);if(lastD)dist=clamp(dist*lastD/dd,3,30);lastD=dd}
+ if(ids.length===2){cutting=false;sculpting=false;combing=false;grooming=false;var a1=pts[ids[0]],b1=pts[ids[1]],dd=Math.hypot(a1.x-b1.x,a1.y-b1.y);if(lastD)dist=clamp(dist*lastD/dd,3,34);lastD=dd}
  else if((p.b===2&&mode==='orb')||p.b===1||e.shiftKey){var s=dist*0.0016,r=new T.Vector3().setFromMatrixColumn(cam.matrix,0),u=new T.Vector3().setFromMatrixColumn(cam.matrix,1);tgt.addScaledVector(r,-dx*s).addScaledVector(u,dy*s)}
  else{th-=dx*0.007;ph=clamp(ph-dy*0.007,0.15,3);ox+=dx;oy+=dy}place()});
-st.addEventListener('wheel',function(e){e.preventDefault();camGoal=null;dist=clamp(dist*Math.exp(e.deltaY*0.001),3,30);place()},{passive:false});
+st.addEventListener('wheel',function(e){e.preventDefault();camGoal=null;dist=clamp(dist*Math.exp(e.deltaY*0.001),3,34);place()},{passive:false});
 function size(){var w=st.clientWidth,h=st.clientHeight;ren.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix()}
 addEventListener('resize',size);
 var HINTS={orb:['Drag to orbit · right-drag or Shift-drag to pan · scroll or pinch to zoom','اسحب للدوران · اسحب بالزر الأيمن أو مع Shift للتحريك · مرّر أو اقرص للتكبير'],
@@ -1473,6 +1573,7 @@ function buildUI(){
   Sec_('Live preview','معاينة حيّة','<div class="chips" id="animC">'+[['none','Off','إيقاف'],['idle','Idle','سكون'],['talk','Talking','تحدّث'],['emo','Emotion tour','جولة المشاعر']].map(function(a){return'<button data-anim="'+a[0]+'">'+sp(a[1],a[2])+'</button>'}).join('')+'</div>',true);
  B.light=Head_('Lighting & camera','الإضاءة والكاميرا','Production lighting rigs with matching reflections, tone mapping and lens control.','أطقم إضاءة احترافية مع انعكاسات متطابقة وتعيين الألوان والتحكم بالعدسة.')+
   Ch_('light.rig',Object.keys(RIGS).map(function(k){return[k,RIGS[k].en,RIGS[k].ar]}))+R_('light.rot','Rig rotation','دوران الإضاءة',-180,180,1,0)+R_('light.int','Intensity','الشدة',0.2,2,0.02)+R_('light.expo','Exposure','التعريض',0.3,2.5,0.02)+
+  Sel_('light.stage','Stage','المشهد',[['barber','Barber shop (room, chair, mirror)','صالون حلاقة (غرفة وكرسي ومرآة)'],['none','None (studio background)','بدون (خلفية استوديو)']])+K_('light.props','Chair & cape','الكرسي والعباءة')+K_('light.mirror','Real-time mirror','مرآة لحظية')+R_('light.stint','Room lights','إضاءة الغرفة',0,2,0.05)+
   Sel_('light.tone','Tone mapping','تعيين الألوان',[['linear','Linear (original look)','خطي (المظهر الأصلي)'],['aces','ACES Filmic','ACES سينمائي'],['reinhard','Reinhard','راينهارد'],['cineon','Cineon','سينيون']])+
   Sel_('light.bg','Background','الخلفية',[['rig','Rig gradient','تدرج الإضاءة'],['solid','Solid color','لون ثابت'],['green','Green screen','شاشة خضراء'],['trans','Transparent','شفافة']])+'<div class="cols">'+C_('light.bgc','Solid color','اللون الثابت')+'</div>'+
   R_('view.focal','Focal length (mm)','البعد البؤري (مم)',18,135,1)+K_('view.turn','Turntable','قاعدة دوّارة');
@@ -1622,7 +1723,7 @@ var tab0='blend';try{tab0=localStorage.getItem('hf_tab')||'blend'}catch(e){}if(!
 ready=true;showTab(tab0);setMode(mode);syncUI();applyDeform();paintSkin();last=snap();updUR();
 var clock=new T.Clock(),fpsA=0,fpsN=0;
 // HF_TEST: headless harness steps frames manually instead of running the rAF loop
-if(window.HF_TEST)window.HF={SKU:SKU,geo:function(){return g},skinMat:skinMat,updShort:updShort,EARD:function(){return EARD},S:S,BR:BR,LY:LY,frame:function(n){for(var i=0;i<(n||1);i++)frame()},setCtl:setCtl,syncUI:syncUI,showTab:showTab,goCam:goCam,undo:undo,redo:redo,brushAt:brushAt,commit:commit,randomAll:randomAll,setupMesh:setupMesh,buildAll:buildAll,refreshAll:refreshAll,gStart:gStart,cutAt:cutAt,exportOBJ:exportOBJ,saveJSON:saveJSON,loadJSON:loadJSON,anim:ANIM,RIMS:function(){return RIMS},cam:function(t,p,d){th=t;ph=p;dist=d;camGoal=null;place()},setTgt:function(x,y,z){tgt.set(x,y,z);place()},snap:snap,toggleCM:toggleCM,skGen:skGen,skBake:skBake,SKS:SKS,clip:clip,pick:function(x,y){var h=hit({clientX:x,clientY:y});return h?h.p.toArray().map(function(v){return+v.toFixed(3)}):null},mode:function(){return mode+'/'+S.barb.tool+'/'+cutting}};
+if(window.HF_TEST)window.HF={SKU:SKU,geo:function(){return g},skinMat:skinMat,updShort:updShort,EARD:function(){return EARD},S:S,BR:BR,LY:LY,frame:function(n){for(var i=0;i<(n||1);i++)frame()},setCtl:setCtl,syncUI:syncUI,showTab:showTab,goCam:goCam,undo:undo,redo:redo,brushAt:brushAt,commit:commit,randomAll:randomAll,setupMesh:setupMesh,buildAll:buildAll,refreshAll:refreshAll,gStart:gStart,cutAt:cutAt,exportOBJ:exportOBJ,saveJSON:saveJSON,loadJSON:loadJSON,anim:ANIM,RIMS:function(){return RIMS},cam:function(t,p,d){th=t;ph=p;dist=d;camGoal=null;place()},setTgt:function(x,y,z){tgt.set(x,y,z);place()},snap:snap,STG:STG,toggleCM:toggleCM,skGen:skGen,skBake:skBake,SKS:SKS,clip:clip,pick:function(x,y){var h=hit({clientX:x,clientY:y});return h?h.p.toArray().map(function(v){return+v.toFixed(3)}):null},mode:function(){return mode+'/'+S.barb.tool+'/'+cutting}};
 skInit();
 (function loop(){requestAnimationFrame(loop);if(!window.HF_TEST)frame()})();
 function frame(){var dt=Math.min(clock.getDelta(),0.05),tm=clock.elapsedTime;
@@ -1637,7 +1738,7 @@ function frame(){var dt=Math.min(clock.getDelta(),0.05),tm=clock.elapsedTime;
   if(cutting||auto){clip.position.addScaledVector(tn,Math.sin(tm*140)*0.006*sc*LD.mt.vib);tilt.rotation.z=Math.sin(tm*95)*0.012*LD.mt.vib}else tilt.rotation.z=0}
  if(G.on){G.t-=dt;G.last+=dt;if(G.last>0.45){G.last=0;if(G.dirty){G.dirty=false;G.acc=accuracy();drawMini()}}hud();if(G.t<=0)gEnd()}
  if(defDirty)applyDeform();if(paintDirty)paintSkin();
- updEyes(dt);stepP(dt);for(var n in LY){var L=LY[n];if(L.dirty&&L.obj){L.obj.geometry.attributes.aMisc.needsUpdate=true;L.dirty=false;shortDirty=true}}if(shortDirty&&tm-shortT>0.1){shortT=tm;updShort()}physUpdate(dt,tm);updHairLight();if(earG.visible)earG.children.forEach(function(c){c.visible=c.userData.sx*cam.position.x>0});if(key.shadow.map){LU.uShMap.value=key.shadow.map.texture;LU.uShTx.value=1/key.shadow.mapSize.x;LU.uShRng.value=key.shadow.camera.far-key.shadow.camera.near;LU.uShOn.value=S.hmat.shadow>0?1:0}
+ updEyes(dt);stepP(dt);for(var n in LY){var L=LY[n];if(L.dirty&&L.obj){L.obj.geometry.attributes.aMisc.needsUpdate=true;L.dirty=false;shortDirty=true}}if(shortDirty&&tm-shortT>0.1){shortT=tm;updShort()}physUpdate(dt,tm);stgTick(dt);updHairLight();if(earG.visible)earG.children.forEach(function(c){c.visible=c.userData.sx*cam.position.x>0});if(key.shadow.map){LU.uShMap.value=key.shadow.map.texture;LU.uShTx.value=1/key.shadow.mapSize.x;LU.uShRng.value=key.shadow.camera.far-key.shadow.camera.near;LU.uShOn.value=S.hmat.shadow>0?1:0}
  ren.render(scene,cam);
  fpsA+=dt;fpsN++;if(fpsA>0.5){$('sbF').textContent=Math.round(fpsN/fpsA)+' fps';$('phn').textContent=PH.G?(PH.G+tx(' guides · sim ',' دليل · محاكاة ')+PH.ms.toFixed(2)+' ms'+(PH.asleep?tx(' · asleep',' · ساكن'):'')):'';fpsA=fpsN=0}}
 })();
