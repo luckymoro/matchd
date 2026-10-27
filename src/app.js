@@ -40,7 +40,7 @@ var S={
  comb:{t:'comb',r:0.45,str:1,teeth:'med',tex:0,dmode:'follow',ang:0},
  groom:{b:'dir',r:0.3,str:0.5,sym:true,inv:false,c:'#d9b07a',viz:true},
  tie:{mode:'none',sel:'top',u:[0,0.62,-0.78],tight:0.75,spread:0.4,bunR:0.16,band:'#151515'},
- barb:{tool:'clipper',sym:false,lever:0,flick:0,slen:0.6,thin:0.35,lw:0.035,straight:false},
+ barb:{tool:'clipper',sym:false,lever:0,flick:0,slen:0.6,thin:0.35,lw:0.035,straight:false,mech:false},
  ear:{margin:0.08,sb:2.4,back:2.35,taper:0.85,slope:0.9,guides:false},
  light:{rig:'barber',rot:0,int:1,expo:0.85,tone:'aces',bg:'rig',bgc:'#202226',stage:'barber',mirror:true,props:true,stint:1},
  view:{mode:'lit',focal:42,hair:true,turn:false,guides:false}
@@ -1144,11 +1144,13 @@ var gmat=new T.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.5}),
 clip.visible=false;scene.add(clip);
 // real clipper model (supplied FBX), baked in the cutting frame: blade edge at the origin, contact face toward the head
 // (-z), body trailing along +y at 28 degrees off the surface. Triangle groups: blade plate, head housing, body.
+var cutterBlade=null;
 var clipX=(function(){function b64(t){var a=atob(t),u=new Uint8Array(a.length);for(var i=0;i<a.length;i++)u[i]=a.charCodeAt(i);return u.buffer}
  var g=new T.BufferGeometry(),o=0;g.setAttribute('position',new T.BufferAttribute(new Float32Array(b64(CLIPD.pos)),3));g.setIndex(new T.BufferAttribute(new Uint16Array(b64(CLIPD.idx)),1));g.computeVertexNormals();
- CLIPD.g.forEach(function(n,k){g.addGroup(o,n,k);o+=n});
- [mS,bn.material,mB].forEach(function(m){m.side=T.DoubleSide});
- var m=new T.Mesh(g,[mS,bn.material,mB]);m.castShadow=true;tilt.add(m);bdy.visible=bn.visible=bl.visible=teeth.visible=false;tilt.rotation.x=0;return m})();
+
+ [mS,mB].forEach(function(m){m.side=T.DoubleSide});
+ var gb=g.clone();gb.setIndex(g.index.clone());gb.groups=[];gb.setDrawRange(0,CLIPD.g[0]);var gr=g.clone();gr.setIndex(g.index.clone());gr.groups=[];gr.setDrawRange(CLIPD.g[0],CLIPD.g[1]+CLIPD.g[2]);
+ var m=new T.Mesh(gr,mB);m.castShadow=true;tilt.add(m);var m1=new T.Mesh(gb,mS);m1.castShadow=true;tilt.add(m1);cutterBlade=m1;bdy.visible=bn.visible=bl.visible=teeth.visible=false;tilt.rotation.x=0;return m})();
 var lnPrev=new T.Line(new T.BufferGeometry().setFromPoints([new T.Vector3(),new T.Vector3()]),new T.LineBasicMaterial({color:0xff4040,depthTest:false}));lnPrev.renderOrder=11;lnPrev.visible=false;scene.add(lnPrev);
 function lnPrevSet(a,b){var p=lnPrev.geometry.attributes.position;p.setXYZ(0,a.x,a.y,a.z);p.setXYZ(1,b.x,b.y,b.z);p.needsUpdate=true;lnPrev.visible=true}
 // straight razor line: sample the screen segment, project each sample onto the head, cut along the surface path
@@ -1160,7 +1162,7 @@ var NP=1500,pp=new Float32Array(NP*3),pv=new Float32Array(NP*3),pl=new Float32Ar
 for(var i0=0;i0<NP;i0++)pp[i0*3+1]=-99;
 var pg=new T.BufferGeometry();pg.setAttribute('position',new T.BufferAttribute(pp,3));pg.setAttribute('color',new T.BufferAttribute(pc,3));
 var pobj=new T.Points(pg,new T.PointsMaterial({size:3,sizeAttenuation:false,vertexColors:true}));pobj.frustumCulled=false;scene.add(pobj);
-function spawn(pt,nm,c){var hc=col(cur.h);for(var s=0;s<c;s++){pn=(pn+1)%NP;var i=pn,j=i*3,r=Math.random;pp[j]=pt.x+(r()-.5)*0.2;pp[j+1]=pt.y+(r()-.5)*0.2;pp[j+2]=pt.z+(r()-.5)*0.2;pv[j]=nm.x*0.6+(r()-.5)*0.8;pv[j+1]=nm.y*0.6+r()*0.5;pv[j+2]=nm.z*0.6+(r()-.5)*0.8;pl[i]=2.5;var b=0.6+r()*0.7;pc[j]=hc.r*b;pc[j+1]=hc.g*b;pc[j+2]=hc.b*b}pg.attributes.color.needsUpdate=true}
+function spawn(pt,nm,c,rgb){var hc=rgb||col(cur.h);for(var s=0;s<c;s++){pn=(pn+1)%NP;var i=pn,j=i*3,r=Math.random;pp[j]=pt.x+(r()-.5)*0.2;pp[j+1]=pt.y+(r()-.5)*0.2;pp[j+2]=pt.z+(r()-.5)*0.2;pv[j]=nm.x*0.6+(r()-.5)*0.8;pv[j+1]=nm.y*0.6+r()*0.5;pv[j+2]=nm.z*0.6+(r()-.5)*0.8;pl[i]=2.5;var b=0.6+r()*0.7;pc[j]=hc.r*b;pc[j+1]=hc.g*b;pc[j+2]=hc.b*b}pg.attributes.color.needsUpdate=true}
 function stepP(dt){for(var i=0;i<NP;i++){if(pl[i]<=0)continue;pl[i]-=dt;var j=i*3;pv[j+1]-=3.2*dt;pv[j]*=0.99;pv[j+2]*=0.99;pp[j]+=pv[j]*dt;pp[j+1]+=pv[j+1]*dt;pp[j+2]+=pv[j+2]*dt;if(pl[i]<=0||pp[j+1]<-0.6){pl[i]=0;pp[j+1]=-99}}pg.attributes.position.needsUpdate=true}
 var BL={std:{n:'Standard',a:'قياسية',w:1,vw:1,min:0.012,taper:0,prec:60,cov:60,noise:55,safe:70},taper:{n:'Taper blade',a:'شفرة تدريج',w:0.8,vw:0.85,min:0.012,taper:1.2,prec:78,cov:55,noise:50,safe:75},tblade:{n:'T-blade outliner',a:'شفرة T للتحديد',w:0.55,vw:0.5,min:0.004,taper:0,prec:95,cov:30,noise:60,safe:55},foil:{n:'Foil shaver',a:'ماكينة رقائق',w:1.1,vw:1.05,min:0.002,taper:0,prec:70,cov:65,noise:45,safe:95},wide:{n:'Wide pro blade',a:'شفرة عريضة',w:1.6,vw:1.5,min:0.02,taper:0,prec:35,cov:95,noise:80,safe:60}};
 var MT={std:{n:'Standard motor',a:'محرك قياسي',pitch:105,vib:1,part:1,dp:0,dn:0},rot:{n:'Rotary motor',a:'محرك دوّار',pitch:150,vib:1.7,part:1.5,dp:-8,dn:18},mag:{n:'Magnetic motor',a:'محرك مغناطيسي',pitch:80,vib:0.6,part:0.7,dp:8,dn:-22}};
@@ -1178,8 +1180,8 @@ function buildMenu(){var h='';[['Blade','الشفرة','bl'],['Motor','المح�
  h+='</div></div><div class="slot"><div class="t">'+tx('Attachments','الملحقات')+'</div><div class="opts2"><button data-t="laser" class="'+(LD.laser?'on':'')+'">'+tx('Laser guide','دليل ليزر')+'</button><button data-t="led" class="'+(LD.led?'on':'')+'">'+tx('LED light','إضاءة LED')+'</button></div></div>';
  $('opts').innerHTML=h;$('stats').innerHTML=cstats().map(function(s){var v=clamp(s[2],0,100);return'<div class="sb"><span>'+tx(s[0],s[1])+'</span><u><i style="width:'+v+'%"></i></u></div>'}).join('');
  setT($('cmT'),'Clipper loadout','تجهيز ماكينة الحلاقة');setT($('cmX'),'Close (Esc)','إغلاق (Esc)')}
-function applyLD(){setBlade();var f=LD.fin;mB.color.set(f.c);mB.metalness=f.m;mB.roughness=f.r;mB.emissive.set(f.e);bn.material.color.set(f.band);lz.visible=LD.laser;led.intensity=LD.led?1.2:0;if(osc)osc.frequency.value=LD.mt.pitch;buildMenu()}
-function toggleCM(on){cm=on;$('cm').classList.toggle('open',on);if(on){stopBuzz();clip.visible=true;buildMenu()}else if(mode!=='clip'&&!auto)clip.visible=false}
+function applyLD(){setBlade();var f=LD.fin;mB.color.set(f.c);mB.metalness=f.m;mB.roughness=f.r;mB.emissive.set(f.e);bn.material.color.set(f.band);lz.visible=LD.laser;led.intensity=LD.led?1.2:0;if(osc)osc.frequency.value=LD.mt.pitch;buildMenu();carLockMenu()}
+function toggleCM(on){cm=on;$('cm').classList.toggle('open',on);if(on){stopBuzz();clip.visible=true;buildMenu();carLockMenu()}else if(mode!=='clip'&&!auto)clip.visible=false}
 
 /* ---------- barber challenge ---------- */
 var LAD=[['skin','Skin (foil) · 0 mm','جلد · 0 مم',0.003],['0','#0 · 0.8 mm','#0 · 0.8 مم',0.015],['0.5','#0.5 · 1.5 mm','#0.5 · 1.5 مم',0.04],['1','#1 · 3 mm','#1 · 3 مم',0.07],['1.5','#1.5 · 4.5 mm','#1.5 · 4.5 مم',0.095],['2','#2 · 6 mm','#2 · 6 مم',0.12],['3','#3 · 10 mm','#3 · 10 مم',0.2],['4','#4 · 13 mm','#4 · 13 مم',0.3],['5','#5 · 16 mm','#5 · 16 مم',0.4],['6','#6 · 19 mm','#6 · 19 مم',0.5],['8','#8 · 25 mm','#8 · 25 مم',0.65]];
@@ -1210,17 +1212,115 @@ function updFadeViz(){var a=g.attributes.aFade;if(!a)return;var n=fadeLevels().l
 var G={on:false,t:0,score:0,combo:0,mist:0,tg:'fade',acc:0,dirty:false,last:0},trimmed=0;
 var TG={fade:{say:['Give me the fade from the photo!','أريد التدريج الذي في الصورة!'],f:function(y){return 0.02+0.43*sm((y-2.05)/1.75)}},buzz:{say:['Just a clean #1 buzz all over.','حلاقة نظيفة رقم 1 لكامل الرأس.'],f:function(){return 0.07}},taper:{say:['High skin fade, keep the top!','تدريج عالٍ حتى الجلد، واترك الأعلى!'],f:function(y){return y<3.0?0.02:0.02+0.35*sm((y-3.0)/0.9)}}};
 function toast(m,bad){var e=$('toast');e.textContent=m;e.className=bad?'bad show':'show';clearTimeout(toast.t);toast.t=setTimeout(function(){e.className=''},1900)}
-function accuracy(){var H=LY.scalp.H,f=TG[G.tg].f,s=0;for(var i=0;i<H.n;i++){var id=Math.min(H.L0[i],f(H.RT[i*3+1]));s+=Math.abs(Math.min(H.L0[i],H.CAP[i])-id)}return Math.max(0,100*(1-(s/Math.max(1,H.n))/0.2))}
-function hud(){$('hS').textContent=Math.round(G.score)+' '+tx('pts','نقطة');$('hT').textContent=Math.ceil(G.t)+' '+tx('s','ث');$('hA').textContent=tx('Accuracy ','الدقة ')+Math.round(G.acc)+'%';$('hC').textContent=tx('Combo ×','سلسلة ×')+(1+Math.min(G.combo,20)*0.1).toFixed(1);$('hM').textContent=G.mist+' '+tx('mistakes','أخطاء')}
+function accuracy(){var H=LY.scalp.H,f=TG[G.tg].f,s=0;for(var i=0;i<H.n;i++){var id=Math.min(H.L0[i],f(H.RT[i*3+1],H.RT[i*3],H.RT[i*3+2]));s+=Math.abs(Math.min(H.L0[i],H.CAP[i])-id)}return Math.max(0,100*(1-(s/Math.max(1,H.n))/0.2))}
+function hud(){if(CAR.on&&CAR.cust){$('hMoney').textContent='$'+CAR.money;$('hOrder').textContent=CAR.cust.name[LANG==='ar'?1:0]+' ('+(CAR.shift.n+1)+'/'+CAR.shift.total+')'}else{$('hMoney').textContent='';$('hOrder').textContent=''}
+ $('hS').textContent=Math.round(G.score)+' '+tx('pts','نقطة');$('hT').textContent=Math.ceil(G.t)+' '+tx('s','ث');$('hA').textContent=tx('Accuracy ','الدقة ')+Math.round(G.acc)+'%';$('hC').textContent=tx('Combo ×','سلسلة ×')+(1+Math.min(G.combo,20)*0.1).toFixed(1);$('hM').textContent=G.mist+' '+tx('mistakes','أخطاء')}
 function drawMini(){var H=LY.scalp.H,c=$('mini'),x=c.getContext('2d'),W=c.width,Hh=c.height,nb=10,sm2=new Float32Array(nb),tg=new Float32Array(nb),cn=new Float32Array(nb),f=TG[G.tg].f,i,b;
- for(i=0;i<H.n;i++){var y=H.RT[i*3+1];b=Math.floor((y-2)/2.6*nb);if(b<0||b>=nb)continue;sm2[b]+=Math.min(H.L0[i],H.CAP[i]);tg[b]+=Math.min(H.L0[i],f(y));cn[b]++}
+ for(i=0;i<H.n;i++){var y=H.RT[i*3+1];b=Math.floor((y-2)/2.6*nb);if(b<0||b>=nb)continue;sm2[b]+=Math.min(H.L0[i],H.CAP[i]);tg[b]+=Math.min(H.L0[i],f(y,H.RT[i*3],H.RT[i*3+2]));cn[b]++}
  x.clearRect(0,0,W,Hh);var bw2=W/nb,mx=0.7;for(b=0;b<nb;b++){if(!cn[b])continue;var cv2=sm2[b]/cn[b]/mx*(Hh-16),tv=tg[b]/cn[b]/mx*(Hh-16);x.fillStyle='#7fb4cf';x.fillRect(b*bw2+3,Hh-14-cv2,bw2-6,cv2);x.fillStyle='#e0a030';x.fillRect(b*bw2,Hh-15-tv,bw2,3)}
  x.fillStyle='#9a948b';x.font='10px system-ui';x.fillText(tx('low','أسفل'),2,Hh-2);var lab=tx('top of head · bars = yours, gold = target','أعلى الرأس · الأعمدة = قصّتك، الذهبي = الهدف');x.fillText(lab,W-x.measureText(lab).width-2,Hh-2)}
-function gStart(){G.tg=$('tgt').value;S.fade.on=false;buildScalp();G.on=true;G.t=90;G.score=0;G.combo=0;G.mist=0;G.acc=0;$('hud').hidden=false;$('res').hidden=true;$('mini').hidden=false;setMode('clip');toast(tx(TG[G.tg].say[0],TG[G.tg].say[1]));drawMini();hud()}
-function gEnd(){if(!G.on)return;G.on=false;stopBuzz();var a=accuracy(),sc=Math.round(G.score*(0.5+a/100)),s=a>=90?3:a>=75?2:a>=55?1:0;
+function gStart(){CAR.on=false;$('hDone').hidden=true;$('carRes').hidden=true;G.tg=$('tgt').value;S.fade.on=false;buildScalp();G.on=true;G.t=90;G.score=0;G.combo=0;G.mist=0;G.acc=0;$('hud').hidden=false;$('res').hidden=true;$('mini').hidden=false;setMode('clip');toast(tx(TG[G.tg].say[0],TG[G.tg].say[1]));drawMini();hud()}
+function gEnd(){if(!G.on)return;if(G.tg==='car'){carEnd();return}G.on=false;stopBuzz();var a=accuracy(),sc=Math.round(G.score*(0.5+a/100)),s=a>=90?3:a>=75?2:a>=55?1:0;
  $('rT').textContent='★'.repeat(s)+'☆'.repeat(3-s);$('rP').textContent=tx('Accuracy ','الدقة ')+Math.round(a)+'%\n'+tx('Score ','النتيجة ')+sc+'\n'+tx('Mistakes ','الأخطاء ')+G.mist+'\n'+(s===3?tx('Master barber!','حلاق محترف!'):s?tx('Nice cut, keep practicing.','قصة جيدة، واصل التدريب.'):tx('Too rough, try again.','خشنة جداً، حاول مرة أخرى.'));$('res').hidden=false;commit()}
 function gScore(r){G.score=Math.max(0,G.score+(r.good*0.05+r.prog*0.01)*(1+Math.min(G.combo,20)*0.1)-r.over*0.3);
  if(r.over>3){G.combo=0;G.mist++;scare=1;toast(tx('Over-cut! Careful','قصّ زائد! انتبه'),true)}else if(r.good>0)G.combo+=0.2;G.dirty=true}
+/* ================= game mechanics: clipper systems + barber career =================
+ Clipper (always real-time when enabled): battery drain while cutting, blade heat (oil halves it, cool spray drops it),
+ hair clog that thins the cut until the blade is brushed, skin nicks when you shave fast, and a customer mood that shows
+ on the face. Career: customers arrive with a random head and an order, you cut against the order's ideal lengths
+ under a timer, get paid by accuracy, speed, mood and tips, level up (unlocking tools) and spend money in the shop. */
+var MTX={std:{cap:100,drain:1.4,heat:1},rot:{cap:80,drain:1.9,heat:1.3},mag:{cap:150,drain:1.0,heat:0.65}};
+var MECH={on:false,bat:100,heat:0,oil:100,clog:0,mood:100,charge:0,act:false,spd:0,lt:0,nicks:0,burn:0,expr:null,exprB:-1,exprDirty:false,warnT:0,nickT:0,overT:0,over:0};
+var CAR={on:false,money:0,xp:0,lv:1,rep:4,day:1,stock:{oil:3,cool:2},owned:{bl:['std'],mt:['std'],fin:['black']},cust:null,tgt:null,shift:{n:0,total:5,earn:0,tips:0}};
+var BLOOD=new T.Color(0.62,0.04,0.05);
+function mtKey(){for(var k in MT)if(MT[k]===LD.mt)return k;return'std'}
+function carSave(){try{localStorage.setItem('hf_career',JSON.stringify({money:CAR.money,xp:CAR.xp,lv:CAR.lv,rep:CAR.rep,day:CAR.day,stock:CAR.stock,owned:CAR.owned}))}catch(e){}}
+function carLoad(){try{var o=JSON.parse(localStorage.getItem('hf_career')||'null');if(o){CAR.money=o.money||0;CAR.xp=o.xp||0;CAR.lv=o.lv||1;CAR.rep=o.rep||4;CAR.day=o.day||1;CAR.stock=o.stock||CAR.stock;CAR.owned=o.owned||CAR.owned}}catch(e){}}
+var TOOLLV={clipper:1,trimmer:2,scissors:3,razor:4,line:4,thin:5};
+function toolOk(t){return!CAR.on||CAR.lv>=(TOOLLV[t]||1)}
+/* ---- clipper systems ---- */
+function mechSet(on){MECH.on=!!on||CAR.on;var d=$('mech');if(d)d.hidden=!MECH.on;if(!MECH.on){MECH.expr=null;MECH.exprB=-1;mS.emissive.setRGB(0,0,0)}else if(on){MECH.bat=mechCap();MECH.heat=0;MECH.oil=100;MECH.clog=0;MECH.mood=100}}
+function mechCap(){return(MTX[mtKey()]||MTX.std).cap}
+function mechCan(){var M=MECH;if(!M.on)return true;if(M.charge>0)return false;if(M.bat<=0){if(performance.now()-M.warnT>1500){M.warnT=performance.now();toast(tx('Battery dead - recharge (R)','البطارية فارغة - اشحن (R)'),true)}return false}return true}
+function moodHit(v,msg,bad){MECH.mood=Math.max(0,MECH.mood-v);scare=Math.max(scare,v>6?1:0.5);if(msg)toast(msg,bad)}
+function nick(pt,nm){var M=MECH;M.nicks++;moodHit(14,tx('Nick! Slow down on the skin','جرح! خفّف السرعة على البشرة'),true);spawn(pt,nm,16,BLOOD);if(G.on){G.mist++;G.combo=0;G.dirty=true}}
+function mechAct(k){var M=MECH,own=CAR.on;
+ if(k==='o'){if(own&&CAR.stock.oil<=0){toast(tx('Out of blade oil - buy more in the shop','نفد زيت الشفرة - اشترِ من المتجر'),true);return}if(own)CAR.stock.oil--;M.oil=100;toast(tx('Blade oiled','تم تزييت الشفرة'));carSave();carUI()}
+ else if(k==='b'){M.clog=0;toast(tx('Blade brushed clean','تم تنظيف الشفرة'))}
+ else if(k==='q'){if(own&&CAR.stock.cool<=0){toast(tx('Out of cool spray','نفد بخاخ التبريد'),true);return}if(own)CAR.stock.cool--;M.heat=Math.max(0,M.heat-45);toast(tx('Blade cooled','تم تبريد الشفرة'));carSave();carUI()}
+ else if(k==='r'){if(M.charge<=0&&M.bat<mechCap()){M.charge=6;toast(tx('Charging the clipper... (6 s)','جارٍ شحن الماكينة... (6 ث)'))}}
+ mechUI()}
+function mechTick(dt){var M=MECH;if(!M.on)return;var mk=MTX[mtKey()]||MTX.std,cap=mk.cap;if(M.bat>cap)M.bat=cap;
+ if(M.charge>0){M.charge-=dt;M.bat=Math.min(cap,M.bat+cap/6*dt);if(M.charge<=0){M.charge=0;toast(tx('Battery charged','تم شحن البطارية'))}}
+ var cut=M.act&&cutting&&M.charge<=0;M.act=false;
+ if(cut){M.bat=Math.max(0,M.bat-1.5*mk.drain*dt*(0.7+0.5*M.clog/100));M.heat=Math.min(100,M.heat+8*mk.heat*(M.oil>0?0.55:1.45)*dt);M.oil=Math.max(0,M.oil-1.6*dt)}
+ else{M.heat=Math.max(0,M.heat-(S.barb.tool==='razor'?4:11)*dt);M.bat=Math.max(0,M.bat-0.02*dt)}
+ if(M.heat>78&&cut){M.mood=Math.max(0,M.mood-(M.heat>92?6:1.4)*dt);if(M.heat>92){M.burn+=dt;if(M.burn>1){M.burn=0;moodHit(0,tx('The hot blade is burning the skin!','الشفرة الساخنة تحرق البشرة!'),true);spawn(clip.position,tn,6,BLOOD)}}}
+ else M.mood=Math.min(100,M.mood+0.4*dt);
+ mS.emissive.setRGB(M.heat/100*0.55,M.heat/100*0.06,0);
+ if(osc&&ac)osc.frequency.value=LD.mt.pitch*(0.82+0.18*M.bat/cap)*(1-0.2*M.clog/100);
+ // vibrating blade (the blade is its own mesh in the cutter model)
+ if(cutterBlade)cutterBlade.position.x=cut?Math.sin(tmNow*210)*0.007:0;
+ mechUI();mechExpr()}
+var tmNow=0;
+function mechExpr(){var m=MECH.mood,b=m>70?0:m>45?1:m>25?2:3;if(b===MECH.exprB&&MECH.expr)return;MECH.exprB=b;var e={},k;for(k in S.expr)e[k]=S.expr[k];
+ if(b===0)e.smile=Math.max(e.smile||0,0.12);else if(b===1){e.frown=Math.max(e.frown||0,0.25);e.browDown=Math.max(e.browDown||0,0.2)}else if(b===2){e.frown=0.55;e.browDown=0.6;e.sneer=0.25}else{e.frown=0.8;e.browDown=0.9;e.sneer=0.5;e.jaw=0.15}
+ MECH.expr=e;MECH.exprDirty=true}
+function mechBuild(){if($('mech'))return;var css=document.createElement('style');css.textContent='#mech{position:absolute;inset-inline-end:12px;top:12px;z-index:4;display:grid;gap:5px;width:190px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 10px}#mech .mb{display:grid;grid-template-columns:62px 1fr;gap:6px;align-items:center;font-size:11px;color:var(--mute)}#mech .mb i{display:block;height:7px;border-radius:4px;background:var(--bg);position:relative;overflow:hidden}#mech .mb i b{position:absolute;inset:0 auto 0 0;background:var(--acc);width:50%}#mech .btns{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:2px}#mech .btns button{padding:4px;font-size:11px}#mech.low .mb[data-k=bat] i b,#mech .mb[data-k=heat].hot i b,#mech .mb[data-k=clog].hot i b{background:var(--bad)}.carbox{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px}.carbox .xp{height:6px;border-radius:3px;background:var(--bg);margin:6px 0;overflow:hidden}.carbox .xp b{display:block;height:100%;background:var(--acc2)}#carRes,#shop{position:absolute;inset:0;display:grid;place-items:center;background:#000a;z-index:8}#carRes[hidden],#shop[hidden]{display:none}#carRes .card,#shop .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 22px;min-width:300px;max-width:460px;max-height:86%;overflow:auto}#carRes h2,#shop h2{margin:0 0 6px;font-size:24px;color:var(--acc2)}#carRes p{white-space:pre-line;margin:0 0 10px}#shop .it{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}#shop .it small{display:block;color:var(--mute)}#shop h3{margin:10px 0 2px;font-size:13px;color:var(--mute)}.locked{opacity:.45}';document.head.appendChild(css);
+ var d=document.createElement('div');d.id='mech';d.hidden=true;d.innerHTML=[['bat','Battery','البطارية'],['heat','Blade heat','حرارة الشفرة'],['oil','Oil','الزيت'],['clog','Clog','الانسداد'],['mood','Mood','المزاج']].map(function(x){return'<div class="mb" data-k="'+x[0]+'"><span>'+sp(x[1],x[2])+'</span><i><b></b></i></div>'}).join('')+'<div class="btns"><button data-ma="o">'+sp('Oil (O)','زيت (O)')+'</button><button data-ma="b">'+sp('Brush (B)','فرشاة (B)')+'</button><button data-ma="q">'+sp('Cool (Q)','تبريد (Q)')+'</button><button data-ma="r">'+sp('Charge (R)','شحن (R)')+'</button></div>';st.appendChild(d);
+ d.querySelectorAll('[data-ma]').forEach(function(b){b.onclick=function(ev){ev.stopPropagation();mechAct(b.dataset.ma)}});
+ var cr=document.createElement('div');cr.id='carRes';cr.hidden=true;cr.innerHTML='<div class="card"><h2></h2><p></p><div class="btns"></div></div>';st.appendChild(cr);
+ var sh=document.createElement('div');sh.id='shop';sh.hidden=true;sh.innerHTML='<div class="card"><h2></h2><div class="body"></div><button class="x">'+'×'+'</button></div>';st.appendChild(sh);sh.querySelector('.x').onclick=function(){sh.hidden=true;carUI()};
+ var hm=document.createElement('span');hm.id='hMoney';$('hud').insertBefore(hm,$('hS'));var ho=document.createElement('span');ho.id='hOrder';$('hud').appendChild(ho);var hd=document.createElement('button');hd.id='hDone';hd.className='p';hd.style.cssText='width:auto;background:var(--acc);color:var(--accink);border-color:var(--acc);cursor:pointer';hd.textContent='✓ '+tx('Finish cut','إنهاء القصة');hd.hidden=true;$('hud').appendChild(hd);hd.onclick=function(){carEnd(true)}}
+function mechUI(){var d=$('mech');if(!d||d.hidden)return;var M=MECH,cap=mechCap(),v={bat:M.bat/cap,heat:M.heat/100,oil:M.oil/100,clog:M.clog/100,mood:M.mood/100};
+ d.querySelectorAll('.mb').forEach(function(r){var k=r.dataset.k,w=Math.round(clamp(v[k],0,1)*100);r.querySelector('b').style.width=w+'%';r.classList.toggle('hot',(k==='heat'&&M.heat>75)||(k==='clog'&&M.clog>55))});d.classList.toggle('low',M.bat<20)}
+/* ---- orders ---- */
+function fadeIdeal(F){var lev=null;return function(y,x,z){var keep=S.fade;S.fade=F;if(!lev)lev=fadeLevels();var t=fadeT(x,y,z,9),c=(z>0.35&&Math.abs(x)<0.75)?9:fadeCap(t,lev);S.fade=keep;return c}}
+var CT=[
+ {id:'buzz',lv:1,pay:30,time:95,say:['A clean #1 buzz all over, please.','حلاقة نظيفة رقم 1 للرأس كله، من فضلك.'],f:function(){return 0.07}},
+ {id:'low',lv:1,pay:40,time:110,say:['Low skin fade, leave the top long.','تدريج منخفض حتى الجلد، واترك الأعلى طويلاً.'],f:fadeIdeal(FADEP.low[2])},
+ {id:'under',lv:2,pay:48,time:110,say:['Undercut: #2 on the sides and back, top untouched.','أندركت: رقم 2 على الجوانب والخلف وترك الأعلى.'],f:fadeIdeal(FADEP.under[2])},
+ {id:'taper',lv:2,pay:52,time:110,say:['A neat taper at the nape and around the ears.','تدريج أنيق عند الرقبة وحول الأذنين.'],f:fadeIdeal(FADEP.taper[2])},
+ {id:'mid',lv:2,pay:58,time:115,say:['Mid skin fade, keep the top.','تدريج متوسط حتى الجلد، مع إبقاء الأعلى.'],f:fadeIdeal(FADEP.mid[2])},
+ {id:'scis',lv:3,pay:68,time:130,say:['Short back and sides (#2), top scissor-cut short.','قصير من الخلف والجوانب (رقم 2) والأعلى بالمقص قصير.'],f:function(y){return y<3.25?0.12:0.55}},
+ {id:'high',lv:3,pay:74,time:120,say:['High skin fade, keep the top!','تدريج عالٍ حتى الجلد، واترك الأعلى!'],f:fadeIdeal(FADEP.high[2])},
+ {id:'drop',lv:4,pay:86,time:130,say:['Drop fade, sharp and clean.','تدريج منحدر، حاد ونظيف.'],f:fadeIdeal(FADEP.drop[2])},
+ {id:'edge',lv:4,pay:96,time:140,edge:true,say:['Low fade with a razor line-up at the temples and nape.','تدريج منخفض مع خط حاد بالموس عند الصدغين والرقبة.'],f:fadeIdeal(FADEP.low[2])}];
+var NAMES=[['Omar','عمر'],['Yusuf','يوسف'],['Karim','كريم'],['Leo','ليو'],['Adam','آدم'],['Zain','زين'],['Noah','نوح'],['Idris','إدريس'],['Sami','سامي'],['Marco','ماركو'],['Hassan','حسن'],['Ravi','رافي']];
+function edgeFrac(){var H=LY.scalp.H,sh=0,n=0;for(var i=0;i<H.n;i++){var x=H.RT[i*3],y=H.RT[i*3+1],z=H.RT[i*3+2],nape=y<2.15&&z<-0.5,temple=Math.abs(x)>0.85&&y>2.85&&y<3.35&&z>0.2;if(!nape&&!temple)continue;n++;if(H.CAP[i]<0.004)sh++}return n?sh/n:0}
+function carUI(){var d=$('carStats');if(!d)return;var need=Math.round(100*Math.pow(CAR.lv,1.3)),prev=Math.round(100*Math.pow(CAR.lv-1,1.3))*(CAR.lv>1?1:0);d.innerHTML='<b>'+tx('Level ','المستوى ')+CAR.lv+'</b> · $'+CAR.money+' · ★ '+CAR.rep.toFixed(1)+' · '+tx('Day ','اليوم ')+CAR.day+'<div class="xp"><b style="width:'+clamp((CAR.xp-prev)/Math.max(1,need-prev),0,1)*100+'%"></b></div><small>'+tx('Oil ','زيت ')+CAR.stock.oil+' · '+tx('Cool spray ','بخاخ ')+CAR.stock.cool+' · '+tx('Tools unlocked: clipper','الأدوات المتاحة: ماكينة')+(CAR.lv>=2?', '+tx('trimmer','تريمر'):'')+(CAR.lv>=3?', '+tx('scissors','مقص'):'')+(CAR.lv>=4?', '+tx('razor','موس'):'')+(CAR.lv>=5?', '+tx('thinning','تخفيف'):'')+'</small>';
+ var g=$('carGo');if(g)g.textContent=CAR.on?tx('Next customer','الزبون التالي'):tx('Open the shop','افتح الصالون')}
+function carStart(){CAR.on=true;mechSet(true);MECH.bat=mechCap();CAR.shift={n:0,total:5,earn:0,tips:0};S.light.stage='barber';applyLight();syncUI();toast(tx('Shop open! Customer 1 of 5','فُتح الصالون! الزبون 1 من 5'));carNew()}
+function carNew(){var R=Math.random,pk=function(a){return a[Math.floor(R()*a.length)]},C=CAR;
+ var pool=CT.filter(function(t){return t.lv<=C.lv}),t=pk(pool.slice(Math.max(0,pool.length-4))),nm=pk(NAMES);
+ randomFace();S.skin.mel=0.05+R()*0.9;S.skin.red=0.25+R()*0.5;S.skin.custom='';S.skin.freck=R()<0.3?R()*0.6:R()*0.15;S.skin.age=R()*0.45;S.eyes.c=pk(ICOL)[0];
+ setP(pk(['long','wavy','curly','beck','quiff','pomp','flowback','crop']));S.fade.on=false;cur.len=Math.max(cur.len,0.85+R()*0.45);cur.stub=0;var hc=pk(HCOL.slice(0,7));cur.h=hc[0];cur.t=hc[1];cur.seed=1+Math.floor(R()*999);S.beard.style='none';S.hmat.grey=R()<0.15?R()*0.5:0;
+ grmReset();buildScalp();buildBeard();buildBrow();paintDirty=true;defDirty=true;refreshAll();
+ C.cust={name:nm,t:t};TG.car={say:t.say,f:t.f};G.tg='car';G.on=true;G.t=Math.max(55,t.time-C.lv*3);G.tmax=G.t;G.score=0;G.combo=0;G.mist=0;G.acc=0;
+ MECH.mood=100;MECH.nicks=0;MECH.clog=0;MECH.exprB=-1;MECH.expr=null;MECH.over=0;$('hud').hidden=false;$('res').hidden=true;$('carRes').hidden=true;$('mini').hidden=false;$('hDone').hidden=false;
+ $('gd').selectedIndex=2;guard();setMode('clip');goCam('q34');drawMini();hud();toast(nm[LANG==='ar'?1:0]+': '+tx(t.say[0],t.say[1]))}
+function carEnd(manual){if(!G.on||G.tg!=='car')return;G.on=false;stopBuzz();var C=CAR,t=C.cust.t,a=accuracy(),M=MECH,tl=Math.max(0,G.t),ef=t.edge?edgeFrac():0,bonus=0,notes=[];
+ var base=t.pay,acc=base*(0.3+0.7*a/100);if(a<35)acc*=0.4;
+ var speed=a>=70?base*0.3*clamp(tl/G.tmax,0,1):0,tip=base*0.5*(M.mood/100)*(a/100)*(C.rep/5+0.4);
+ if(t.edge){bonus=base*0.6*clamp(ef/0.6,0,1);notes.push(tx('Line-up shaved ','الخط الحاد ')+Math.round(ef*100)+'%')}
+ var pen=Math.min(base*0.9,M.nicks*6+(M.heat>92?5:0)+Math.min(G.mist,15)*2),tot=Math.max(0,Math.round(acc+speed+tip+bonus-pen)),st2=a>=95?5:a>=85?4:a>=70?3:a>=55?2:a>=35?1:0;if(M.mood<35)st2=Math.max(0,st2-1);
+ C.money+=tot;C.shift.earn+=tot;C.shift.n++;C.rep=C.rep*0.8+Math.max(1,st2)*0.2;var xp=Math.round(10+a/4+(M.nicks?0:8)+(M.mood>75?5:0)),old=C.lv;C.xp+=xp;while(C.xp>=Math.round(100*Math.pow(C.lv,1.3)))C.lv++;
+ carSave();carUI();var last=C.shift.n>=C.shift.total,rp=$('carRes'),card=rp.querySelector('.card');
+ card.querySelector('h2').textContent='★'.repeat(st2)+'☆'.repeat(5-st2);
+ card.querySelector('p').textContent=C.cust.name[LANG==='ar'?1:0]+' - '+tx(t.say[0],t.say[1])+'\n'+tx('Accuracy ','الدقة ')+Math.round(a)+'%  ·  '+tx('Mood ','المزاج ')+Math.round(M.mood)+'%\n'+tx('Pay $','الأجر $')+Math.round(acc)+(speed?'  +'+tx('speed $','سرعة $')+Math.round(speed):'')+'  +'+tx('tip $','بقشيش $')+Math.round(tip)+(bonus?'  +'+tx('line-up $','الخط $')+Math.round(bonus):'')+(pen?'  -'+tx('penalties $','غرامات $')+pen:'')+'\n'+(notes.join('  ')?notes.join('  ')+'\n':'')+'= $'+tot+'  (+'+xp+' XP)'+(C.lv>old?'\n'+tx('LEVEL UP! Level ','ترقية! المستوى ')+C.lv+(TOOLLV.trimmer===C.lv||TOOLLV.scissors===C.lv||TOOLLV.razor===C.lv||TOOLLV.thin===C.lv?' - '+tx('new tool unlocked','أداة جديدة'):''):'')+(last?'\n\n'+tx('Shift over: earned $','انتهى الدوام: ربحت $')+C.shift.earn:'');
+ var bt=card.querySelector('.btns');bt.innerHTML='';function mk(txt,fn,cls){var b=document.createElement('button');b.textContent=txt;if(cls)b.className=cls;b.onclick=fn;bt.appendChild(b)}
+ if(!last)mk(tx('Next customer','الزبون التالي'),function(){carNew()},'p');else{mk(tx('New day','يوم جديد'),function(){C.day++;carSave();carStart()},'p')}
+ mk(tx('Shop','المتجر'),function(){carShop()});mk(tx('Close','إغلاق'),function(){rp.hidden=true;$('hDone').hidden=true;if(last){C.on=false;mechSet(S.barb.mech)}carUI()});
+ rp.hidden=false;$('hDone').hidden=true;commit()}
+/* ---- shop ---- */
+var SHOP=[['Blades','الشفرات','bl',[['taper','Taper blade','شفرة تدريج',120,1],['tblade','T-blade outliner','شفرة T',200,2],['wide','Wide pro blade','شفرة عريضة',150,2],['foil','Foil shaver','ماكينة رقائق',320,3]]],
+ ['Motors','المحركات','mt',[['rot','Rotary motor (strong, thirsty)','محرك دوّار (قوي)',250,2],['mag','Magnetic motor (cool, long battery)','محرك مغناطيسي (بارد وبطارية طويلة)',700,4]]],
+ ['Finishes','الطلاء','fin',[['chrome','Chrome','كروم',80,1],['red','Racing red','أحمر سباق',120,1],['neon','Neon blue','أزرق نيون',150,1],['gold','Gold','ذهبي',300,3]]]];
+function carShop(){var sh=$('shop'),C=CAR,b=sh.querySelector('.body');sh.querySelector('h2').textContent=tx('Shop','المتجر')+' - $'+C.money;var h='';
+ SHOP.forEach(function(g){h+='<h3>'+tx(g[0],g[1])+'</h3>';g[3].forEach(function(it){var own=C.owned[g[2]].indexOf(it[0])>=0,lock=C.lv<it[4];h+='<div class="it'+(lock?' locked':'')+'"><div>'+tx(it[1],it[2])+'<small>'+(own?tx('Owned','مملوك'):lock?tx('Unlocks at level ','يفتح عند المستوى ')+it[4]:'$'+it[3])+'</small></div><button data-g="'+g[2]+'" data-k="'+it[0]+'" data-p="'+it[3]+'"'+(own||lock||C.money<it[3]?' disabled':'')+'>'+(own?'✓':tx('Buy','شراء'))+'</button></div>'})});
+ h+='<h3>'+tx('Supplies','المستلزمات')+'</h3><div class="it"><div>'+tx('Blade oil x3','زيت الشفرة x3')+'<small>$15 · '+tx('you have ','لديك ')+C.stock.oil+'</small></div><button data-sup="oil" data-p="15"'+(C.money<15?' disabled':'')+'>'+tx('Buy','شراء')+'</button></div><div class="it"><div>'+tx('Cool spray x2','بخاخ تبريد x2')+'<small>$20 · '+tx('you have ','لديك ')+C.stock.cool+'</small></div><button data-sup="cool" data-p="20"'+(C.money<20?' disabled':'')+'>'+tx('Buy','شراء')+'</button></div>';
+ b.innerHTML=h;b.querySelectorAll('button').forEach(function(x){x.onclick=function(){var p=+x.dataset.p;if(C.money<p)return;C.money-=p;if(x.dataset.sup==='oil')C.stock.oil+=3;else if(x.dataset.sup==='cool')C.stock.cool+=2;else C.owned[x.dataset.g].push(x.dataset.k);carSave();carShop();carUI()}});sh.hidden=false}
+function carLockMenu(){if(!CAR.on)return;document.querySelectorAll('#opts [data-s]').forEach(function(b){var o=CAR.owned[b.dataset.s];if(o&&o.indexOf(b.dataset.k)<0)b.classList.add('locked')})}
 // roots are bucketed in a spatial grid so every cut step only visits the strands near the blade
 function gridBuild(H){var m=new Map(),RT=H.RT;for(var i=0;i<H.n;i++){var k=((Math.floor(RT[i*3]/0.25)+64)*128+Math.floor(RT[i*3+1]/0.25)+64)*128+Math.floor(RT[i*3+2]/0.25)+64,a=m.get(k);if(!a){a=[];m.set(k,a)}a.push(i)}return m}
 function gridQ(H,p,r,fn){if(!H.grid)H.grid=gridBuild(H);var c=0.25,x0=Math.floor((p.x-r)/c),x1=Math.floor((p.x+r)/c),y0=Math.floor((p.y-r)/c),y1=Math.floor((p.y+r)/c),z0=Math.floor((p.z-r)/c),z1=Math.floor((p.z+r)/c);
@@ -1228,22 +1328,23 @@ function gridQ(H,p,r,fn){if(!H.grid)H.grid=gridBuild(H);var c=0.25,x0=Math.floor
 // o.n + o.fx: rectangular blade footprint, edge on to the stroke; o.flick lengthens toward the heel; o.thin: thinning shears
 function cutAt(pt,rad,cap,taper,o){o=o||{};var r={c:0,good:0,over:0,prog:0},gf=G.on?TG[G.tg].f:null,n=o.n,fx=o.fx,bx=n&&fx?new T.Vector3().crossVectors(n,fx).normalize():null,dep=rad*0.45;
  [LY.scalp,LY.beard].forEach(function(L){var H=L.H,RT=H.RT;if(!H.n)return;
-  gridQ(H,pt,rad+0.05,function(i){var j=i*3,dx=RT[j]-pt.x,dy=RT[j+1]-pt.y,dz=RT[j+2]-pt.z,e,fl=0,nc;
+  gridQ(H,pt,rad+0.05,function(i){if(o.eff!==undefined&&o.eff<1&&Math.random()>o.eff)return;var j=i*3,dx=RT[j]-pt.x,dy=RT[j+1]-pt.y,dz=RT[j+2]-pt.z,e,fl=0,nc;
    if(bx){var a=dx*bx.x+dy*bx.y+dz*bx.z,f=dx*fx.x+dy*fx.y+dz*fx.z,hn=dx*n.x+dy*n.y+dz*n.z;if(Math.abs(a)>rad||Math.abs(f)>dep||Math.abs(hn)>0.3)return;e=Math.abs(a)/rad;fl=(o.flick||0)*0.18*(0.5-f/dep*0.5)}
    else{var d2=dx*dx+dy*dy+dz*dz;if(d2>rad*rad)return;e=Math.sqrt(d2)/rad}
    var hs=((i*2654435761)>>>0)/4294967296;
    if(o.thin){if(((i*2246822519+3266489917)>>>0)/4294967296>o.thin)return;nc=H.L0[i]*(0.35+0.4*hs)}
    else nc=(cap*(1+taper*e)+fl)*(o.jit===undefined?0.8+0.4*hs:1-o.jit+2*o.jit*hs);
    if(nc<Math.min(H.L0[i],H.CAP[i])){H.CAP[i]=nc;H.MISC[i*4]=H.DH[i]?0:Math.min(H.L0[i],nc);L.dirty=true;r.c++;
-    if(gf&&L===LY.scalp){var er=Math.min(H.L0[i],nc)-Math.min(H.L0[i],gf(RT[j+1]));if(er<-0.06)r.over++;else if(er<=0.06)r.good++;else r.prog++}}})});
+    if(gf&&L===LY.scalp){var er=Math.min(H.L0[i],nc)-Math.min(H.L0[i],gf(RT[j+1],RT[j],RT[j+2]));if(er<-0.06)r.over++;else if(er<=0.06)r.good++;else r.prog++}}})});
  return r}
-function doCut(pt,nm,cap,fx){var B=S.barb,tool=auto?'clipper':B.tool,w=(+$('bw').value)*LD.bl.w,cp,tp=LD.bl.taper,o={n:nm,fx:fx||null};
+function doCut(pt,nm,cap,fx){if(!mechCan())return;var B=S.barb,tool=auto?'clipper':B.tool;if(!toolOk(tool)){if(performance.now()-MECH.warnT>1500){MECH.warnT=performance.now();toast(tx('That tool unlocks at level ','تفتح هذه الأداة عند المستوى ')+TOOLLV[tool],true)}return}var eff=MECH.on?clamp(1-(MECH.clog-55)/55*0.85,0.15,1)*(MECH.oil<=0?0.85:1):1,w=(+$('bw').value)*LD.bl.w,cp,tp=LD.bl.taper,o={n:nm,fx:fx||null};
  if(tool==='razor'){cp=0;w*=0.7;tp=0;o.jit=0}else if(tool==='line'){cp=0;w=B.lw;tp=0;o.jit=0}else if(tool==='trimmer'){cp=0.004;w*=0.55;tp=0;o.jit=0.03}
  else if(tool==='scissors'){cp=B.slen;tp=0;o.jit=0.12}
  else if(tool==='thin'){cp=9;o.thin=B.thin}
  else{cp=(cap<=0.0125?LD.bl.min:Math.max(cap,LD.bl.min))+B.lever*0.03;o.flick=B.flick}
- var r=cutAt(pt,w,cp,tp,o);
- if(B.sym&&!auto&&Math.abs(pt.x)>0.05){var r2=cutAt(new T.Vector3(-pt.x,pt.y,pt.z),w,cp,tp,{n:new T.Vector3(-nm.x,nm.y,nm.z),fx:fx?new T.Vector3(-fx.x,fx.y,fx.z):null,jit:o.jit,thin:o.thin,flick:o.flick});r.c+=r2.c;r.good+=r2.good;r.over+=r2.over;r.prog+=r2.prog}
+ o.eff=eff;var r=cutAt(pt,w,cp,tp,o);
+ if(B.sym&&!auto&&Math.abs(pt.x)>0.05){var r2=cutAt(new T.Vector3(-pt.x,pt.y,pt.z),w,cp,tp,{n:new T.Vector3(-nm.x,nm.y,nm.z),fx:fx?new T.Vector3(-fx.x,fx.y,fx.z):null,jit:o.jit,thin:o.thin,flick:o.flick,eff:eff});r.c+=r2.c;r.good+=r2.good;r.over+=r2.over;r.prog+=r2.prog}
+ if(MECH.on&&r.c){MECH.act=true;MECH.clog=Math.min(100,MECH.clog+r.c*0.0008);if(r.over>3&&G.on&&performance.now()-MECH.overT>900){MECH.overT=performance.now();moodHit(4)}var shave=tool==='razor'||tool==='line'||tool==='trimmer'||(tool==='clipper'&&cap<0.02),nw=performance.now();if(shave&&MECH.spd>8&&nw-MECH.nickT>1300&&Math.random()<0.012*(MECH.spd-7)){MECH.nickT=nw;nick(pt,nm)}}
  if(r.c){trimmed+=r.c;spawn(pt,nm,Math.min(22,Math.ceil(r.c/8*LD.mt.part)));if(G.on)gScore(r);else note(tx('Trimmed ','تم قص ')+trimmed+tx(' strands',' خصلة'))}}
 var ac=null,og=null,osc=null;
 function startBuzz(){var sn=$('snd');if(sn&&!sn.checked)return;try{if(!ac){ac=new(window.AudioContext||window.webkitAudioContext)();var o=ac.createOscillator(),f=ac.createBiquadFilter();og=ac.createGain();o.type='sawtooth';o.frequency.value=LD.mt.pitch;osc=o;f.type='lowpass';f.frequency.value=700;og.gain.value=0;o.connect(f);f.connect(og);og.connect(ac.destination);o.start()}if(ac.state==='suspended')ac.resume();og.gain.setTargetAtTime(0.03,ac.currentTime,0.03)}catch(e){}}
@@ -1369,7 +1470,7 @@ function goCam(k){var c=CAMS[k];var d=c[2]-th;d=Math.atan2(Math.sin(d),Math.cos(
 var pts={},lastD=0,rc=new T.Raycaster();
 function hit(e){var r=cv.getBoundingClientRect();rc.setFromCamera(new T.Vector2((e.clientX-r.left)/r.width*2-1,-((e.clientY-r.top)/r.height)*2+1),cam);var h=rc.intersectObject(skin)[0];if(!h)return null;var n=h.face.normal.clone();if(n.dot(rc.ray.direction)>0)n.negate();return{p:h.point.clone(),n:n}}
 function hover(e,cut){var h=hit(e);if(!h){if(!cut)clip.visible=false;return}if(cut&&lnS){setPose(h.p,h.n);lnPrevSet(lnS.p,h.p);return}setPose(h.p,h.n);
- if(cut){var cap=+$('gd').value,from=lastPt||h.p,d=from.distanceTo(h.p),rad=S.barb.tool==='line'?S.barb.lw:+$('bw').value*(S.barb.tool==='razor'?0.7:1),steps=Math.max(1,Math.ceil(d/(rad*0.4)));var fxv=h.p.clone().sub(from);fxv.addScaledVector(h.n,-fxv.dot(h.n));var fxo=fxv.lengthSq()>1e-8?fxv.normalize():lastFx;if(fxo){lastFx=fxo;setPose(h.p,h.n,fxo.clone().negate())}
+ if(cut){var cap=+$('gd').value,from=lastPt||h.p,d=from.distanceTo(h.p),nw0=performance.now(),sp0=(MECH.spd=d/Math.max(0.008,(nw0-MECH.lt)/1000),MECH.lt=nw0),rad=S.barb.tool==='line'?S.barb.lw:+$('bw').value*(S.barb.tool==='razor'?0.7:1),steps=Math.max(1,Math.ceil(d/(rad*0.4)));var fxv=h.p.clone().sub(from);fxv.addScaledVector(h.n,-fxv.dot(h.n));var fxo=fxv.lengthSq()>1e-8?fxv.normalize():lastFx;if(fxo){lastFx=fxo;setPose(h.p,h.n,fxo.clone().negate())}
   for(var s=1;s<=steps;s++)doCut(from.clone().lerp(h.p,s/steps),h.n,cap,fxo);lastPt=h.p;startBuzz()}else lastPt=null}
 function sculptMove(e){var h=hit(e);sculptHover(h);if(!sculpting||!h)return;if(BR.t==='grab'&&!brushMod.smooth)return;var from=lastSc||h.p,d=from.distanceTo(h.p),steps=Math.max(1,Math.min(12,Math.ceil(d/(BR.r*0.3))));for(var s=1;s<=steps;s++)brushAt(from.clone().lerp(h.p,s/steps),h.n,true);lastSc=h.p}
 st.addEventListener('contextmenu',function(e){e.preventDefault()});
@@ -1420,8 +1521,8 @@ function restore(sn){restoring=true;var old=JSON.parse(JSON.stringify(S)),nw=JSO
  [[LY.scalp,sn.cs],[LY.beard,sn.cb]].forEach(function(q){var L=q[0],c=q[1],H=L.H;if(!H.n)return;H.CAP.fill(9);if(c&&c.length===H.n)H.CAP.set(c);for(var i=0;i<H.n;i++)H.MISC[i*4]=H.DH[i]?0:Math.min(H.L0[i],H.CAP[i]);L.dirty=true});
  if(sn.gm)grmSet(sn.gm);else grmReset();applyGroomAll();
  refreshAll();restoring=false}
-function undo(){if(!UND.length)return;RED.push(last);last=UND.pop();restore(last);updUR()}
-function redo(){if(!RED.length)return;UND.push(last);last=RED.pop();restore(last);updUR()}
+function undo(){if(G.on&&G.tg==='car'){toast(tx('No undo during a cut','لا تراجع أثناء القصة'),true);return}if(!UND.length)return;RED.push(last);last=UND.pop();restore(last);updUR()}
+function redo(){if(G.on&&G.tg==='car')return;if(!RED.length)return;UND.push(last);last=RED.pop();restore(last);updUR()}
 function refreshAll(){shortDirty=true;updEar();updTie();updSkinU();updEyeMats();updHairCols();updHairMat();updPhys();applyLight();applyView();paintDirty=true;defDirty=true;syncUI();stats0()}
 
 /* ================= save / load / export ================= */
@@ -1473,7 +1574,7 @@ async function exportGLB(){note(tx('Preparing GLB…','جارٍ تجهيز GLB�
 /* ================= animation preview ================= */
 var ANIM={mode:'none',t:0};
 var EMOSEQ=['happy','surprise','angry','sad','disgust','neutral'];
-function animStep(dt){if(ANIM.mode==='none'){if(animExpr){animExpr=null;defDirty=true}return}ANIM.t+=dt;var t=ANIM.t,e={},k;for(k in S.expr)e[k]=S.expr[k];function ad(k,v){e[k]=clamp((e[k]||0)+v,-1,1)}
+function animStep(dt){if(ANIM.mode==='none'){if(MECH.on&&MECH.expr){if(MECH.exprDirty||animExpr!==MECH.expr){animExpr=MECH.expr;MECH.exprDirty=false;defDirty=true}return}if(animExpr){animExpr=null;defDirty=true}return}ANIM.t+=dt;var t=ANIM.t,e={},k;for(k in S.expr)e[k]=S.expr[k];function ad(k,v){e[k]=clamp((e[k]||0)+v,-1,1)}
  if(ANIM.mode==='idle'){ad('browUp',0.12*Math.max(0,Math.sin(t*0.7)*Math.sin(t*0.23)));ad('smile',0.15*(0.5+0.5*Math.sin(t*0.31)));ad('jaw',0.03*(0.5+0.5*Math.sin(t*1.1)))}
  else if(ANIM.mode==='talk'){ad('jaw',0.4*Math.abs(Math.sin(t*9)*Math.sin(t*2.3+1)));ad('pucker',0.3*Math.max(0,Math.sin(t*4.1)));ad('browUp',0.18*Math.max(0,Math.sin(t*1.3)));ad('smile',0.12*Math.max(0,Math.sin(t*0.6)))}
  else if(ANIM.mode==='emo'){var per=2.4,i=Math.floor(t/per)%EMOSEQ.length,f=sm((t%per)/0.8),A=EMO[EMOSEQ[(i+EMOSEQ.length-1)%EMOSEQ.length]][2],B=EMO[EMOSEQ[i]][2];EXPR.forEach(function(x){var id=x[0];ad(id,(A[id]||0)*(1-f)+(B[id]||0)*f)})}
@@ -1554,6 +1655,7 @@ function buildUI(){
    R_('tie.tight','Tightness','الشدّ',0,1,0.02)+R_('tie.spread','Ponytail spread','انتشار الذيل',0,1,0.02)+R_('tie.bunR','Bun size','حجم الكعكة',0.08,0.3,0.005)+'<div class="cols">'+C_('tie.band','Band colour','لون الربطة')+'</div>'+
    '<p class="desc">'+sp('Paint with the Tie mask brush to add strands to the tie or leave them loose.','ارسم بفرشاة قناع الربط لإضافة خصل إلى الربطة أو تركها مفلوتة.')+'</p>',true);
  B.barber=Head_('Barber tools','أدوات الحلاقة','Cut scalp hair and beards with a simulated clipper, then score your fade.','قصّ شعر الرأس واللحية بماكينة محاكاة، ثم قيّم تدريجك.')+
+  '<div class="carbox"><div id="carStats"></div><div class="two">'+Btn_('carGo','Open the shop','افتح الصالون','p')+Btn_('carShop','Shop','المتجر')+'</div><p class="desc">'+sp('Barber career: customers arrive with an order, you cut it under the clock, get paid by accuracy, speed, mood and tips, level up to unlock tools, and spend money on blades, motors and supplies.','مسيرة الحلاق: يصل الزبائن بطلب، تقصّه ضمن الوقت، وتُدفع لك الأجرة حسب الدقة والسرعة والمزاج والبقشيش، وترتقي لفتح الأدوات وتنفق المال على الشفرات والمحركات والمستلزمات.')+'</p>'+K_('barb.mech','Realistic clipper mechanics (battery, heat, oil, clog, nicks)','ميكانيكا ماكينة واقعية (بطارية، حرارة، زيت، انسداد، جروح)')+'</div>'+
   '<button id="cmBtn" class="p" style="margin-bottom:8px">'+sp('Customize clipper (C)','تخصيص الماكينة (C)')+'</button>'+
   Sec_('Pro barber tools','أدوات الحلاقة الاحترافية',Sel_('barb.tool','Tool','الأداة',[['clipper','Clipper (guards)','ماكينة (أمشاط)'],['razor','Straight razor (shave to skin)','موس حاد (حلاقة حتى الجلد)'],['line','Line designer (razor lines)','رسم الخطوط (خطوط بالموس)'],['trimmer','Trimmer / edger (line-up)','تريمر / تحديد الحواف'],['scissors','Scissors (cut to length)','مقص (قص بطول محدد)'],['thin','Thinning shears (remove bulk)','مقص تخفيف (إزالة الكثافة)']])+K_('barb.sym','Mirror the cut on both sides','قص متماثل على الجانبين')+R_('barb.lever','Clipper lever (open = longer)','ذراع الماكينة (مفتوح = أطول)',0,1,0.05)+R_('barb.flick','Flick-out (soft blend at the heel)','السحب للخارج (دمج ناعم)',0,1,0.05)+R_('barb.slen','Scissor length','طول القص بالمقص',0.05,2,0.01)+R_('barb.thin','Thinning amount','مقدار التخفيف',0.05,0.8,0.01)+R_('barb.lw','Line width','عرض الخط',0.015,0.12,0.005)+K_('barb.straight','Straight lines (press, drag, release)','خطوط مستقيمة (اضغط واسحب ثم أفلت)')+'<p class="desc">'+sp('The blade cuts only the hair under it, edge on to your stroke, so the line follows your hand. Fades and challenges still use the clipper.','الشفرة تقص الشعر الذي تحتها فقط وبعرض متعامد مع حركتك، فيتبع خط القص يدك. التدريج والتحديات تستخدم الماكينة.')+'</p>',true)+
   '<div class="row"><label for="gd">'+sp('Guard comb (keys 1–6)','مشط الحماية (المفاتيح 1–6)')+'</label><select id="gd">'+GD.map(function(g2,i){return'<option value="'+g2[0]+'"'+(i===2?' selected':'')+' data-en="'+(i?g2[1]+' · '+['','1.5 mm','3 mm','6 mm','10 mm','13 mm'][i]:'No guard (skin)')+'" data-ar="'+(i?g2[1]+' · '+['','1.5 مم','3 مم','6 مم','10 مم','13 مم'][i]:'بدون مشط (حتى الجلد)')+'"></option>'}).join('')+'</select></div>'+
@@ -1606,7 +1708,7 @@ function onCtl(p){var a=p.split('.'),top=a[0],k=a[1];
  if(top==='tie'){updTie(k);return}
  if(top==='comb'){if(k==='teeth')mkCombTeeth();return}
  if(top==='groom'){if(k==='r')ring.scale.setScalar(S.groom.r);grmViz();return}
- if(top==='barb')return;
+ if(top==='barb'){if(k==='mech')mechSet(S.barb.mech);return}
  if(top==='hair'&&k==='ear'){LY.scalp.U.uEar.value=cur.ear==='over'?1:0;return}
  if(top==='hair'&&(k==='frizz'||k==='stray'||k==='hl'||k==='hlc')){hairLive(cur);return}
  if(top==='hair'){if(k==='h'||k==='t'){updHairCols();paintDirty=true;return}if(k==='stub'||k==='nape'||k==='front')paintDirty=true;sched('scalp');return}
@@ -1653,6 +1755,7 @@ function bindUI(){var root=document.body;
  $('shk').onclick=function(){PH.shake=1.2;PH.asleep=false};
  $('stl').onclick=function(){if(PH.o){PH.o.set(PH.g);PH.v.fill(0);phWrite(PH.g)}PH.shake=0;PH.asleep=true};
  $('combGo').onclick=function(){setMode('comb')};
+ $('carGo').onclick=function(){if(CAR.on&&G.on&&G.tg==='car'){toast(tx('Finish the current cut first (button in the top bar)','أنهِ القصة الحالية أولاً (الزر في الأعلى)'),true);return}if(CAR.on)carNew();else carStart()};$('carShop').onclick=carShop;
  $('skGenB').onclick=skBake;var skf=document.createElement('input');skf.type='file';skf.multiple=true;skf.accept='image/*';skf.hidden=true;document.body.appendChild(skf);skf.onchange=function(){skLoadFiles(skf.files);skf.value=''};$('skLoad').onclick=function(){skf.click()};
  document.querySelectorAll('[data-skdl]').forEach(function(b){b.onclick=function(){skDownload(b.dataset.skdl)}});
  st.addEventListener('dragover',function(e){if(e.dataTransfer&&[].indexOf.call(e.dataTransfer.types,'Files')>=0)e.preventDefault()});st.addEventListener('drop',function(e){if(!e.dataTransfer||!e.dataTransfer.files.length)return;e.preventDefault();skLoadFiles(e.dataTransfer.files)});
@@ -1664,7 +1767,7 @@ function bindUI(){var root=document.body;
  $('earRst').onclick=function(){Object.assign(S.ear,{margin:0.08,sb:2.4,back:2.35,taper:0.85,slope:0.9});updEar();syncUI();commit()};
  $('combReset').onclick=function(){if(!PH.g)return;PH.g.fill(0);PH.gAny=false;PH.gDirty=true;PH.asleep=false};
  $('cmBtn').onclick=function(){toggleCM(!cm)};$('cmX').onclick=function(){toggleCM(false)};
- $('opts').addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;if(b.dataset.s)LD[b.dataset.s]=SM[b.dataset.s][b.dataset.k];else if(b.dataset.t)LD[b.dataset.t]=!LD[b.dataset.t];else if(b.dataset.g){$('gd').selectedIndex=+b.dataset.g;guard()}applyLD()});
+ $('opts').addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;if(b.dataset.s){if(CAR.on&&CAR.owned[b.dataset.s].indexOf(b.dataset.k)<0){toast(tx('Buy it in the shop first','اشترِه من المتجر أولاً'),true);return}LD[b.dataset.s]=SM[b.dataset.s][b.dataset.k]}else if(b.dataset.t)LD[b.dataset.t]=!LD[b.dataset.t];else if(b.dataset.g){$('gd').selectedIndex=+b.dataset.g;guard()}applyLD()});
  $('gd').addEventListener('change',function(){guard();buildMenu()});$('bw').addEventListener('input',function(e){$('bwv').textContent=e.target.value});$('bwv').textContent=$('bw').value;
  $('auto').onclick=startAuto;$('gS').onclick=gStart;$('gF').onclick=gEnd;$('rB').onclick=gStart;$('rX').onclick=function(){$('res').hidden=true};
  $('sv').onclick=savePNG;$('xOBJ').onclick=exportOBJ;$('xGLB').onclick=exportGLB;$('svJ').onclick=saveJSON;$('ldJ').onclick=function(){$('ldF').click()};
@@ -1673,7 +1776,7 @@ function bindUI(){var root=document.body;
  $('meshL').onchange=function(e){var lv=+e.target.value;note(tx('Rebuilding mesh…','جارٍ إعادة بناء المجسم…'));setTimeout(function(){setupMesh(lv);buildAll();refreshAll();commit();note('')},30)};
  addEventListener('keydown',function(e){var tg=e.target;if((tg.tagName==='INPUT'&&tg.type!=='checkbox'&&tg.type!=='range')||tg.tagName==='SELECT'&&!e.ctrlKey&&!e.metaKey)return;var k=e.key.toLowerCase();
   if((e.ctrlKey||e.metaKey)&&k==='z'){e.preventDefault();if(e.shiftKey)redo();else undo();return}if((e.ctrlKey||e.metaKey)&&k==='y'){e.preventDefault();redo();return}if(e.ctrlKey||e.metaKey||e.altKey)return;
-  if(k==='c')toggleCM(!cm);else if(k==='escape')toggleCM(false);else if(k==='g')showTab('groom');else if(k>='1'&&k<='6'){$('gd').selectedIndex=+k-1;guard();buildMenu()}
+  if(k==='c')toggleCM(!cm);else if(k==='escape')toggleCM(false);else if(k==='g')showTab('groom');else if(MECH.on&&'obqr'.indexOf(k)>=0&&k.length===1)mechAct(k);else if(k>='1'&&k<='6'){$('gd').selectedIndex=+k-1;guard();buildMenu()}
   else if(k==='['||k===']'){var f9=k==='['?0.85:1.18;if(mode==='groom'){S.groom.r=clamp(S.groom.r*f9,0.05,1.2);ring.scale.setScalar(S.groom.r)}else if(mode==='comb')S.comb.r=clamp(S.comb.r*f9,0.15,1.2);else{BR.r=clamp(BR.r*f9,0.05,0.8);ring.scale.setScalar(BR.r)}syncUI()}});
  wheelUI();palUI()}
 
@@ -1723,8 +1826,8 @@ var tab0='blend';try{tab0=localStorage.getItem('hf_tab')||'blend'}catch(e){}if(!
 ready=true;showTab(tab0);setMode(mode);syncUI();applyDeform();paintSkin();last=snap();updUR();
 var clock=new T.Clock(),fpsA=0,fpsN=0;
 // HF_TEST: headless harness steps frames manually instead of running the rAF loop
-if(window.HF_TEST)window.HF={SKU:SKU,geo:function(){return g},skinMat:skinMat,updShort:updShort,EARD:function(){return EARD},S:S,BR:BR,LY:LY,frame:function(n){for(var i=0;i<(n||1);i++)frame()},setCtl:setCtl,syncUI:syncUI,showTab:showTab,goCam:goCam,undo:undo,redo:redo,brushAt:brushAt,commit:commit,randomAll:randomAll,setupMesh:setupMesh,buildAll:buildAll,refreshAll:refreshAll,gStart:gStart,cutAt:cutAt,exportOBJ:exportOBJ,saveJSON:saveJSON,loadJSON:loadJSON,anim:ANIM,RIMS:function(){return RIMS},cam:function(t,p,d){th=t;ph=p;dist=d;camGoal=null;place()},setTgt:function(x,y,z){tgt.set(x,y,z);place()},snap:snap,STG:STG,toggleCM:toggleCM,skGen:skGen,skBake:skBake,SKS:SKS,clip:clip,pick:function(x,y){var h=hit({clientX:x,clientY:y});return h?h.p.toArray().map(function(v){return+v.toFixed(3)}):null},mode:function(){return mode+'/'+S.barb.tool+'/'+cutting}};
-skInit();
+if(window.HF_TEST)window.HF={SKU:SKU,geo:function(){return g},skinMat:skinMat,updShort:updShort,EARD:function(){return EARD},S:S,BR:BR,LY:LY,frame:function(n){for(var i=0;i<(n||1);i++)frame()},setCtl:setCtl,syncUI:syncUI,showTab:showTab,goCam:goCam,undo:undo,redo:redo,brushAt:brushAt,commit:commit,randomAll:randomAll,setupMesh:setupMesh,buildAll:buildAll,refreshAll:refreshAll,gStart:gStart,cutAt:cutAt,exportOBJ:exportOBJ,saveJSON:saveJSON,loadJSON:loadJSON,anim:ANIM,RIMS:function(){return RIMS},cam:function(t,p,d){th=t;ph=p;dist=d;camGoal=null;place()},setTgt:function(x,y,z){tgt.set(x,y,z);place()},snap:snap,STG:STG,nick:nick,MECH:MECH,CAR:CAR,carStart:carStart,carEnd:carEnd,carNew:carNew,mechAct:mechAct,accuracy:accuracy,toggleCM:toggleCM,skGen:skGen,skBake:skBake,SKS:SKS,clip:clip,pick:function(x,y){var h=hit({clientX:x,clientY:y});return h?h.p.toArray().map(function(v){return+v.toFixed(3)}):null},mode:function(){return mode+'/'+S.barb.tool+'/'+cutting}};
+mechBuild();carLoad();carUI();skInit();
 (function loop(){requestAnimationFrame(loop);if(!window.HF_TEST)frame()})();
 function frame(){var dt=Math.min(clock.getDelta(),0.05),tm=clock.elapsedTime;
  if(auto)autoStep(dt);
@@ -1738,7 +1841,7 @@ function frame(){var dt=Math.min(clock.getDelta(),0.05),tm=clock.elapsedTime;
   if(cutting||auto){clip.position.addScaledVector(tn,Math.sin(tm*140)*0.006*sc*LD.mt.vib);tilt.rotation.z=Math.sin(tm*95)*0.012*LD.mt.vib}else tilt.rotation.z=0}
  if(G.on){G.t-=dt;G.last+=dt;if(G.last>0.45){G.last=0;if(G.dirty){G.dirty=false;G.acc=accuracy();drawMini()}}hud();if(G.t<=0)gEnd()}
  if(defDirty)applyDeform();if(paintDirty)paintSkin();
- updEyes(dt);stepP(dt);for(var n in LY){var L=LY[n];if(L.dirty&&L.obj){L.obj.geometry.attributes.aMisc.needsUpdate=true;L.dirty=false;shortDirty=true}}if(shortDirty&&tm-shortT>0.1){shortT=tm;updShort()}physUpdate(dt,tm);stgTick(dt);updHairLight();if(earG.visible)earG.children.forEach(function(c){c.visible=c.userData.sx*cam.position.x>0});if(key.shadow.map){LU.uShMap.value=key.shadow.map.texture;LU.uShTx.value=1/key.shadow.mapSize.x;LU.uShRng.value=key.shadow.camera.far-key.shadow.camera.near;LU.uShOn.value=S.hmat.shadow>0?1:0}
+ updEyes(dt);stepP(dt);for(var n in LY){var L=LY[n];if(L.dirty&&L.obj){L.obj.geometry.attributes.aMisc.needsUpdate=true;L.dirty=false;shortDirty=true}}if(shortDirty&&tm-shortT>0.1){shortT=tm;updShort()}tmNow=tm;mechTick(dt);physUpdate(dt,tm);stgTick(dt);updHairLight();if(earG.visible)earG.children.forEach(function(c){c.visible=c.userData.sx*cam.position.x>0});if(key.shadow.map){LU.uShMap.value=key.shadow.map.texture;LU.uShTx.value=1/key.shadow.mapSize.x;LU.uShRng.value=key.shadow.camera.far-key.shadow.camera.near;LU.uShOn.value=S.hmat.shadow>0?1:0}
  ren.render(scene,cam);
  fpsA+=dt;fpsN++;if(fpsA>0.5){$('sbF').textContent=Math.round(fpsN/fpsA)+' fps';$('phn').textContent=PH.G?(PH.G+tx(' guides · sim ',' دليل · محاكاة ')+PH.ms.toFixed(2)+' ms'+(PH.asleep?tx(' · asleep',' · ساكن'):'')):'';fpsA=fpsN=0}}
 })();
