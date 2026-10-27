@@ -29,7 +29,7 @@ var S={
  shape:{},expr:{},blend:{x:0,y:0},
  skin:{mel:0.58,red:0.5,custom:'',bump:0.6,oil:0.5,sss:0.7,trn:0.8,rough:0.58,freck:0.2,age:0,under:0.25,flush:0.45,blotch:0.4,micro:0.8,fuzz:0.35,src:'scan',smix:0.9,stone:0.3,snorm:1,srough:0.8,scav:0.8,ssss:0.8,sflip:false,su:0.21,sv:0.205,sou:0,sov:0},
  makeup:{lip:0,lipC:'#a8323a',gloss:0,blush:0,blushC:'#d9667a',shadow:0,shadowC:'#6b4a7a',liner:0},
- eyes:{c:'#5b3a24',c2:'#3d6b4f',het:false,size:1,pupil:1,limbal:0.6,sclera:'#f4f1ec',red:0.1,gaze:'auto'},
+ eyes:{c:'#5b3a24',c2:'#3d6b4f',het:false,size:1,pupil:1,limbal:0.6,sclera:'#f4f1ec',red:0.1,gaze:'auto',lim:28,trk:0.5},
  hair:{},
  brow:{on:true,dens:1,len:1,thick:1,arch:0.5,c:'#1f150e',link:true},
  lash:{on:true,len:1,c:'#120c08'},
@@ -37,10 +37,11 @@ var S={
  beard:{style:'none',len:1,dens:0.8,stub:0,c:'#2a1b11',link:true},
  phys:{on:true,k:150,damp:0.3,grav:1,wind:0},
  hmat:{shine:1,gloss:1,trans:1,grey:0,soft:0.7,shadow:1},
+ head:{up:'y',yaw:0,k:1,oy:0,oz:0,eyes:true},
  comb:{t:'comb',r:0.45,str:1,teeth:'med',tex:0,dmode:'follow',ang:0},
  groom:{b:'dir',r:0.3,str:0.5,sym:true,inv:false,c:'#d9b07a',viz:true},
  tie:{mode:'none',sel:'top',u:[0,0.62,-0.78],tight:0.75,spread:0.4,bunR:0.16,band:'#151515'},
- barb:{tool:'clipper',sym:false,lever:0,flick:0,slen:0.6,thin:0.35,lw:0.035,straight:false,mech:false},
+ barb:{tool:'clipper',sym:false,lever:0,flick:0,slen:0.6,thin:0.35,lw:0.035,straight:false,mech:false,cop:1,chide:false,vib:0.5},
  ear:{margin:0.08,sb:2.4,back:2.35,taper:0.85,slope:0.9,guides:false},
  light:{rig:'barber',rot:0,int:1,expo:0.85,tone:'aces',bg:'rig',bgc:'#202226',stage:'barber',mirror:true,props:true,stint:1},
  view:{mode:'lit',focal:42,hair:true,turn:false,guides:false}
@@ -173,7 +174,37 @@ var PKey=pnl(30,22),PRim=pnl(14,40),PTop=pnl(40,10),PFill=pnl(20,20),envRT=null;
 var bgCv=document.createElement('canvas');bgCv.width=2;bgCv.height=256;var bgTex=new T.CanvasTexture(bgCv);
 
 /* ================= mesh pipeline: Loop subdivision ================= */
-var BASE={v:new Float32Array(D.v),f:Uint32Array.from(D.f)};
+var BASE={v:new Float32Array(D.v),f:Uint32Array.from(D.f)},HEAD0={v:BASE.v,f:BASE.f};
+/* ---- imported heads: the largest mesh of an OBJ/GLB/FBX is welded, oriented, and fitted into this head's frame
+ (crown y 4.66, nose tip y 2.377 z 1.41, centred on x) so hair, ears, skin maps and shape controls line up. */
+var HIMP={on:false,raw:null,name:'',skipped:0},RIM0=[];
+function headMeshes(o){var out=[];o.updateMatrixWorld(true);o.traverse(function(m){if(m.isMesh&&m.geometry&&m.geometry.attributes.position){var gg=m.geometry.clone();gg.applyMatrix4(m.matrixWorld);out.push(gg)}});return out}
+function triN(gg){return gg.index?gg.index.count/3:gg.attributes.position.count/3}
+function headRaw(gs){gs.sort(function(a,b){return triN(b)-triN(a)});var gg=gs[0],p=gg.attributes.position,n=p.count,ix=gg.index?gg.index.array:null,mn=[1e9,1e9,1e9],mx=[-1e9,-1e9,-1e9],i,c;
+ for(i=0;i<n;i++){var qv=[p.getX(i),p.getY(i),p.getZ(i)];for(c=0;c<3;c++){if(qv[c]<mn[c])mn[c]=qv[c];if(qv[c]>mx[c])mx[c]=qv[c]}}
+ var eps=Math.hypot(mx[0]-mn[0],mx[1]-mn[1],mx[2]-mn[2])*2e-5||1e-6,map=new Map(),rm=new Uint32Array(n),v=[],f=[];
+ for(i=0;i<n;i++){var x=p.getX(i),y=p.getY(i),z=p.getZ(i),key=Math.round(x/eps)+','+Math.round(y/eps)+','+Math.round(z/eps),id=map.get(key);if(id===undefined){id=v.length/3;map.set(key,id);v.push(x,y,z)}rm[i]=id}
+ var tn=ix?ix.length/3:n/3;for(i=0;i<tn;i++){var a=rm[ix?ix[i*3]:i*3],b=rm[ix?ix[i*3+1]:i*3+1],d=rm[ix?ix[i*3+2]:i*3+2];if(a!==b&&b!==d&&a!==d)f.push(a,b,d)}
+ return{v:new Float32Array(v),f:new Uint32Array(f)}}
+function headLoad(fl){var nm=fl.name.toLowerCase(),ext=nm.split('.').pop(),B0='https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/';note(tx('Loading head…','جارٍ تحميل الرأس…'));
+ var done=function(o){var gs=headMeshes(o);if(!gs.length){note('');toast(tx('No mesh found in that file','لا يوجد مجسم في الملف'),true);return}HIMP.raw=headRaw(gs);HIMP.name=fl.name;HIMP.skipped=gs.length-1;S.head={up:'y',yaw:0,k:1,oy:0,oz:0,eyes:true};syncUI();headApply()},
+  fail=function(e){note('');console.warn(e);toast(tx('Could not read that model','تعذّرت قراءة النموذج'),true)};
+ if(ext==='obj')(T.OBJLoader?Promise.resolve():loadScript(B0+'loaders/OBJLoader.js')).then(function(){return fl.text()}).then(function(t){done(new T.OBJLoader().parse(t))}).catch(fail);
+ else if(ext==='glb'||ext==='gltf')(T.GLTFLoader?Promise.resolve():loadScript(B0+'loaders/GLTFLoader.js')).then(function(){return fl.arrayBuffer()}).then(function(b){new T.GLTFLoader().parse(b,'',function(g2){done(g2.scene)},fail)}).catch(fail);
+ else if(ext==='fbx')(T.FBXLoader?Promise.resolve():loadScript(B0+'libs/fflate.min.js').then(function(){return loadScript(B0+'loaders/FBXLoader.js')})).then(function(){return fl.arrayBuffer()}).then(function(b){done(new T.FBXLoader().parse(b,''))}).catch(fail);
+ else{note('');toast(tx('Use an OBJ, GLB or FBX head','استخدم رأساً بصيغة OBJ أو GLB أو FBX'),true)}}
+function headApply(){var raw=HIMP.raw;if(!raw)return;var H=S.head||{},v=new Float32Array(raw.v),n=v.length/3,i,c,a=(H.yaw||0)*Math.PI/180,ca=Math.cos(a),sa=Math.sin(a);
+ for(i=0;i<n;i++){var x=v[i*3],y=v[i*3+1],z=v[i*3+2];if(H.up==='z'){var t=y;y=z;z=-t}v[i*3]=x*ca+z*sa;v[i*3+1]=y;v[i*3+2]=-x*sa+z*ca}
+ var mn=[1e9,1e9,1e9],mx=[-1e9,-1e9,-1e9];for(i=0;i<n;i++)for(c=0;c<3;c++){mn[c]=Math.min(mn[c],v[i*3+c]);mx[c]=Math.max(mx[c],v[i*3+c])}
+ var Hh=mx[1]-mn[1],W=mx[0]-mn[0],cx=(mn[0]+mx[0])/2,nz=-1e9,ny=mn[1]+Hh*0.5;
+ for(i=0;i<n;i++){if(v[i*3+1]<mx[1]-0.75*Hh||Math.abs(v[i*3]-cx)>0.2*W)continue;if(v[i*3+2]>nz){nz=v[i*3+2];ny=v[i*3+1]}}
+ var sc=(4.66-2.377)/Math.max(1e-6,mx[1]-ny)*(H.k||1);
+ for(i=0;i<n;i++){v[i*3]=(v[i*3]-cx)*sc;v[i*3+1]=(v[i*3+1]-ny)*sc+2.377+(H.oy||0);v[i*3+2]=(v[i*3+2]-nz)*sc+1.41+(H.oz||0)}
+ var lv=0,tr=raw.f.length/3;while(lv<2&&tr*Math.pow(4,lv+1)<=70000)lv++;HIMP.on=true;headRebuild(v,raw.f,lv)}
+function headRebuild(v,f,lv){note(tx('Rebuilding head…','جارٍ إعادة بناء الرأس…'));setTimeout(function(){BASE={v:v,f:f};setupMesh(lv);buildAll();defDirty=true;paintDirty=true;refreshAll();eyeVis();UND.length=0;RED.length=0;last=snap();updUR();$('meshL').value=String(LEVEL);hdInfo();note('');toast(HIMP.on?tx('Head imported','تم استيراد الرأس'):tx('Default head restored','تمت استعادة الرأس الافتراضي'))},30)}
+function headReset(){HIMP.on=false;HIMP.raw=null;headRebuild(HEAD0.v,HEAD0.f,2)}
+function eyeVis(){var on=!HIMP.on||(S.head&&S.head.eyes!==false&&RIMS.eyes.length>=2);eyes.forEach(function(e){e.g.visible=on});mouthG.visible=!HIMP.on||!!RIMS.mouth}
+function hdInfo(){var d=$('hdInfo');if(!d)return;d.textContent=HIMP.on?HIMP.name+' · '+(HIMP.raw.v.length/3)+tx(' verts',' رأس')+' · '+(HIMP.raw.f.length/3)+tx(' tris',' مثلث')+' · '+tx('subdivision ','التقسيم ')+LEVEL+' · '+(RIMS.eyes.length>=2?tx('eye sockets found','تم العثور على تجاويف العين'):tx('no eye sockets (built-in eyes hidden)','لا توجد تجاويف عين (العيون المدمجة مخفية)'))+(HIMP.skipped?' · '+tx('used the largest of ','استُخدم أكبر ')+(HIMP.skipped+1)+tx(' meshes',' مجسمات'):''):tx('Built-in head','الرأس المدمج')}
 function loopSub(pos,idx){
  var nv=pos.length/3,nf=idx.length/3,em=new Map(),ea=[],eb=[],eo=[],eoc=[],fe=new Int32Array(nf*3),f,k,c,e,v;
  for(f=0;f<nf;f++)for(k=0;k<3;k++){var a=idx[f*3+k],b=idx[f*3+(k+1)%3],o=idx[f*3+(k+2)%3],K=a<b?a*nv+b:b*nv+a;e=em.get(K);
@@ -235,7 +266,7 @@ function findRims(){RIMS={eyes:[],mouth:null};var em=new Map(),nv=NV,t,k;
  var comp=new Map(),cid=0;adj.forEach(function(_,v){if(comp.has(v))return;var stck=[v];comp.set(v,cid);while(stck.length){var u=stck.pop();adj.get(u).forEach(function(e){var w=e.a===u?e.b:e.a;if(!comp.has(w)){comp.set(w,cid);stck.push(w)}})}cid++});
  var gr=[];for(var i=0;i<cid;i++)gr.push({v:[],e:[]});comp.forEach(function(c,v){gr[c].v.push(v)});bed.forEach(function(e){gr[comp.get(e.a)].e.push(e)});
  gr.forEach(function(q){var c=new T.Vector3();q.v.forEach(function(v){c.x+=REST[v*3];c.y+=REST[v*3+1];c.z+=REST[v*3+2]});c.divideScalar(q.v.length);q.c0=c;
-  if(Math.abs(Math.abs(c.x)-0.42)<0.25&&Math.abs(c.y-2.95)<0.25&&c.z>0.3){q.k=c.x>0?0:1;q.E0=new T.Vector3(c.x>0?0.5:-0.5,2.93,0.47);var s=0;q.v.forEach(function(v){s+=Math.hypot(REST[v*3]-c.x,REST[v*3+1]-c.y,REST[v*3+2]-c.z)});q.s0=s/q.v.length;q.hw=0;q.v.forEach(function(v){q.hw=Math.max(q.hw,Math.abs(REST[v*3]-c.x))});RIMS.eyes.push(q)}
+  var tolE=HIMP.on?0.45:0.25;if(Math.abs(Math.abs(c.x)-0.42)<tolE&&Math.abs(c.y-2.95)<tolE&&c.z>0.3&&q.v.length>=6){q.k=c.x>0?0:1;q.E0=new T.Vector3(c.x>0?0.5:-0.5,2.93,0.47);var s=0;q.v.forEach(function(v){s+=Math.hypot(REST[v*3]-c.x,REST[v*3+1]-c.y,REST[v*3+2]-c.z)});q.s0=s/q.v.length;q.hw=0;q.v.forEach(function(v){q.hw=Math.max(q.hw,Math.abs(REST[v*3]-c.x))});q.ks=1;if(HIMP.on&&RIM0[q.k]){q.ks=q.s0/RIM0[q.k].s0;q.E0=q.c0.clone().addScaledVector(RIM0[q.k].off,q.ks)}else if(!HIMP.on)RIM0[q.k]={off:q.E0.clone().sub(q.c0),s0:q.s0};RIMS.eyes.push(q)}
   else if(Math.abs(c.x)<0.12&&Math.abs(c.y-1.85)<0.2&&c.z>0.5){q.up=q.v.filter(function(v){return REST[v*3+1]>c.y});if(!q.up.length)q.up=q.v;var u0=new T.Vector3();q.up.forEach(function(v){u0.x+=REST[v*3];u0.y+=REST[v*3+1];u0.z+=REST[v*3+2]});q.u0=u0.divideScalar(q.up.length);RIMS.mouth=q}})}
 function bakeLiner(){LINER=new Float32Array(NV);RIMS.eyes.forEach(function(r){var c=r.c0;
  for(var i=0;i<NV;i++){var x=REST[i*3],y=REST[i*3+1],z=REST[i*3+2];if(Math.abs(x-c.x)>0.45||Math.abs(y-c.y)>0.3||z<0.3)continue;var d=9;
@@ -945,11 +976,17 @@ function mkEye(sx){var g2=new T.Group();g2.position.set(sx*0.5,2.93,0.47);
  g2.add(new T.Mesh(new T.SphereGeometry(1.03,32,24),new T.MeshPhysicalMaterial({color:0xffffff,roughness:0.03,metalness:0,transparent:true,opacity:0.18,depthWrite:false,clearcoat:1,envMapIntensity:1.6})));scene.add(g2);
  return{g:g2,ir:ir,pu:pu,scl:scl,k:1,sx:sx}}
 function updEyeMats(){var e=S.eyes;eyes.forEach(function(E,i){var c=i===1&&e.het?e.c2:e.c;if(E.ir.material.map)E.ir.material.map.dispose();E.ir.material.map=irisTex(c,e.limbal,17+i*7);E.ir.material.needsUpdate=true;E.scl.material.color.set(e.sclera).lerp(new T.Color('#e8a0a0'),e.red*0.5)})}
+var eyeYaw=0,eyePit=0;
 function updEyes(dt){var md=S.eyes.gaze,tp;
  if(md==='fwd')tp=tps.set(0,2.95,12);else if(md==='cursor'){rc.setFromCamera(mouseN,cam);tp=rc.ray.at(7,new T.Vector3())}else if(md==='cam')tp=cam.position;else tp=(clip.visible&&!cm&&mode==='clip')?clip.position:cam.position;
  if(tp!==tps)tps.lerp(tp,0.2);scare=Math.max(0,scare-dt*1.5);
  if(ANIM.mode!=='none'){saccT-=dt;if(saccT<=0){saccT=0.4+Math.random()*1.6;sacc.set((Math.random()-.5)*0.8,(Math.random()-.5)*0.5,0)}}else sacc.set(0,0,0);
- eyes.forEach(function(e){var d=tps.clone().add(sacc).sub(e.g.position).normalize();if(d.z<0.55)d.z=0.55;d.normalize();e.g.lookAt(e.g.position.clone().add(d));var R=eyeR*e.k*S.eyes.size;e.g.scale.set(R,R*(1-scare*0.25),R);var s=(1+scare*0.3)*S.eyes.pupil;e.pu.scale.set(s,s,1)})}
+ // one gaze for both eyes (from between them), soft-limited like a real eye: ~28 deg sideways, less up than down;
+ // targets behind or far to the side relax the eyes toward the front instead of pinning the iris in the corner
+ var ce=eyes.length>1?eyes[0].g.position.clone().add(eyes[1].g.position).multiplyScalar(0.5):new T.Vector3(0,2.93,0.47),dv=tps.clone().add(sacc).sub(ce),hz=Math.hypot(dv.x,dv.z),yaw=Math.atan2(dv.x,dv.z),pit=Math.atan2(dv.y,Math.max(hz,1e-4)),Lm=(S.eyes.lim==null?28:S.eyes.lim)*Math.PI/180,out=sm((Math.abs(yaw)-1.2)/0.6);
+ yaw*=1-out;pit*=1-out;var yc=Lm*Math.tanh(yaw/Lm),pu=Lm*0.65,pd=Lm*0.85,pc=pit>0?pu*Math.tanh(pit/pu):pd*Math.tanh(pit/pd),kk=1-Math.exp(-dt*(5+20*(S.eyes.trk==null?0.5:S.eyes.trk)));
+ eyeYaw+=(yc-eyeYaw)*kk;eyePit+=(pc-eyePit)*kk;var dd=Math.max(0.6,dv.length());
+ eyes.forEach(function(e){var vg=clamp(Math.atan2(e.g.position.x-ce.x,dd),-0.12,0.12);e.g.rotation.set(-eyePit,eyeYaw-vg,0,'YXZ');var R=eyeR*e.k*S.eyes.size;e.g.scale.set(R,R*(1-scare*0.25),R);var s=(1+scare*0.3)*S.eyes.pupil;e.pu.scale.set(s,s,1)})}
 var mouthG=new T.Group();scene.add(mouthG);
 var cav=new T.Mesh(new T.SphereGeometry(1,24,16),new T.MeshStandardMaterial({color:0x2a0a0a,roughness:0.6}));cav.scale.set(0.36,0.2,0.45);cav.position.set(0,1.8,0.5);mouthG.add(cav);
 var tMat=new T.MeshStandardMaterial({color:0xece6d8,roughness:0.25});
@@ -959,7 +996,7 @@ var loT=new T.Mesh(new T.CylinderGeometry(0.31,0.3,0.075,28,1,false,-0.95,1.9),t
 var tong=new T.Mesh(new T.SphereGeometry(1,20,12),new T.MeshStandardMaterial({color:0x9a3b3e,roughness:0.45}));tong.scale.set(0.24,0.07,0.3);tong.position.set(0,1.72-2.05,0.42+0.55);loPiv.add(tong);
 function fitFeatures(){var pa=P.array;
  RIMS.eyes.forEach(function(r){var cx=0,cy=0,cz=0,n=r.v.length,s=0,i,v;for(i=0;i<n;i++){v=r.v[i]*3;cx+=pa[v];cy+=pa[v+1];cz+=pa[v+2]}cx/=n;cy/=n;cz/=n;for(i=0;i<n;i++){v=r.v[i]*3;s+=Math.hypot(pa[v]-cx,pa[v+1]-cy,pa[v+2]-cz)}
-  var e=eyes[r.k];if(!e)return;e.g.position.set(r.E0.x+cx-r.c0.x,r.E0.y+cy-r.c0.y,r.E0.z+cz-r.c0.z);e.k=(s/n)/r.s0});
+  var e=eyes[r.k];if(!e)return;e.g.position.set(r.E0.x+cx-r.c0.x,r.E0.y+cy-r.c0.y,r.E0.z+cz-r.c0.z);e.k=(s/n)/r.s0*(r.ks||1)});
  var m=RIMS.mouth;if(m){var x=0,y=0,z=0;m.up.forEach(function(v){x+=pa[v*3];y+=pa[v*3+1];z+=pa[v*3+2]});var n2=m.up.length;mouthG.position.set(x/n2-m.u0.x,y/n2-m.u0.y,z/n2-m.u0.z)}
  var jv=(animExpr||S.expr).jaw||0;loPiv.rotation.x=0.22*jv;cav.scale.y=0.2+0.14*jv;cav.position.y=1.8-0.09*jv}
 
@@ -1140,7 +1177,11 @@ var bdy=new T.Mesh(new T.BoxGeometry(0.64,2.0,0.46),mB);bdy.position.set(0,1.15,
 var bn=new T.Mesh(new T.BoxGeometry(0.66,0.16,0.48),new T.MeshStandardMaterial({color:0x2f9fd0,roughness:0.4}));bn.position.set(0,0.55,0.25);tilt.add(bn);
 var bl=new T.Mesh(new T.BoxGeometry(0.66,0.2,0.04),mS);bl.position.set(0,0.1,0.02);tilt.add(bl);
 var teeth=new T.Group();tilt.add(teeth);
-var gmat=new T.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.5}),gdm=new T.Mesh(new T.BoxGeometry(0.68,0.22,0.12),gmat);gdm.position.set(0,0.1,0.06);tilt.add(gdm);
+var gmat=new T.MeshStandardMaterial({color:0xffffff,transparent:true,opacity:0.82,roughness:0.35,metalness:0,side:T.DoubleSide}),gdm=new T.Group(),gRib=new T.Group();gdm.add(gRib);tilt.add(gdm);
+(function(){var sh=new T.Shape();sh.moveTo(0,0);sh.lineTo(0.035,-1);sh.lineTo(0.58,-0.12);sh.lineTo(0.64,0);sh.lineTo(0,0);
+ var rg=new T.ExtrudeGeometry(sh,{depth:0.016,bevelEnabled:false});rg.applyMatrix4(new T.Matrix4().set(0,0,1,0,1,0,0,0,0,1,0,0,0,0,0,1));
+ for(var i=0;i<13;i++){var r=new T.Mesh(rg,gmat);r.position.set(-0.308+i*0.05,0,-0.004);r.castShadow=true;gRib.add(r)}
+ var pl=new T.Mesh(new T.BoxGeometry(0.64,0.66,0.012),gmat);pl.position.set(0,0.33,-0.006);gdm.add(pl)})();
 clip.visible=false;scene.add(clip);
 // real clipper model (supplied FBX), baked in the cutting frame: blade edge at the origin, contact face toward the head
 // (-z), body trailing along +y at 28 degrees off the surface. Triangle groups: blade plate, head housing, body.
@@ -1157,7 +1198,7 @@ function lnPrevSet(a,b){var p=lnPrev.geometry.attributes.position;p.setXYZ(0,a.x
 function lnFinish(e){var dx=e.clientX-lnS.x,dy=e.clientY-lnS.y,n=Math.max(2,Math.ceil(Math.hypot(dx,dy)/2)),prev=null;
  for(var i=0;i<=n;i++){var h=hit({clientX:lnS.x+dx*i/n,clientY:lnS.y+dy*i/n});if(!h)continue;
   if(prev){var fx=h.p.clone().sub(prev);fx.addScaledVector(h.n,-fx.dot(h.n));if(fx.lengthSq()>1e-10){fx.normalize();var m=Math.max(1,Math.ceil(prev.distanceTo(h.p)/(S.barb.lw*0.3)));for(var k=1;k<=m;k++)doCut(prev.clone().lerp(h.p,k/m),h.n,0,fx)}}prev=h.p}}
-function guard(){var s=$('gd');gdm.visible=+s.value>0.015;gmat.color.set(['#ffffff','#d94f4f','#e0a030','#5fb85f','#4f8fd9','#a060d0'][s.selectedIndex])}
+function guard(){var s=$('gd');gdm.visible=+s.value>0.015&&(auto||S.barb.tool==='clipper');gmat.color.set(['#ffffff','#d94f4f','#e0a030','#5fb85f','#4f8fd9','#a060d0'][s.selectedIndex])}
 var NP=1500,pp=new Float32Array(NP*3),pv=new Float32Array(NP*3),pl=new Float32Array(NP),pc=new Float32Array(NP*3),pn=0;
 for(var i0=0;i0<NP;i0++)pp[i0*3+1]=-99;
 var pg=new T.BufferGeometry();pg.setAttribute('position',new T.BufferAttribute(pp,3));pg.setAttribute('color',new T.BufferAttribute(pc,3));
@@ -1260,7 +1301,7 @@ function mechTick(dt){var M=MECH;if(!M.on)return;var mk=MTX[mtKey()]||MTX.std,ca
  mS.emissive.setRGB(M.heat/100*0.55,M.heat/100*0.06,0);
  if(osc&&ac)osc.frequency.value=LD.mt.pitch*(0.82+0.18*M.bat/cap)*(1-0.2*M.clog/100);
  // vibrating blade (the blade is its own mesh in the cutter model)
- if(cutterBlade)cutterBlade.position.x=cut?Math.sin(tmNow*210)*0.007:0;
+ if(cutterBlade)cutterBlade.position.x=cut?((vbN&1)?0.0022:-0.0022)*(S.barb.vib==null?0.5:S.barb.vib):0;
  mechUI();mechExpr()}
 var tmNow=0;
 function mechExpr(){var m=MECH.mood,b=m>70?0:m>45?1:m>25?2:3;if(b===MECH.exprB&&MECH.expr)return;MECH.exprB=b;var e={},k;for(k in S.expr)e[k]=S.expr[k];
@@ -1350,8 +1391,12 @@ var ac=null,og=null,osc=null;
 function startBuzz(){var sn=$('snd');if(sn&&!sn.checked)return;try{if(!ac){ac=new(window.AudioContext||window.webkitAudioContext)();var o=ac.createOscillator(),f=ac.createBiquadFilter();og=ac.createGain();o.type='sawtooth';o.frequency.value=LD.mt.pitch;osc=o;f.type='lowpass';f.frequency.value=700;og.gain.value=0;o.connect(f);f.connect(og);og.connect(ac.destination);o.start()}if(ac.state==='suspended')ac.resume();og.gain.setTargetAtTime(0.03,ac.currentTime,0.03)}catch(e){}}
 function stopBuzz(){if(og&&ac)og.gain.setTargetAtTime(0,ac.currentTime,0.05)}
 var tpos=new T.Vector3(),tq=new T.Quaternion(),tn=new T.Vector3(0,0,1),cutting=false,auto=null,mode='orb',lastPt=null,combing=false,lastCb=null,lastFx=null,lnS=null;
+var fpr=new T.LineLoop(new T.BufferGeometry().setFromPoints([new T.Vector3(-0.3,-0.135,0),new T.Vector3(0.3,-0.135,0),new T.Vector3(0.3,0.135,0),new T.Vector3(-0.3,0.135,0)]),new T.LineBasicMaterial({color:0xffa030,depthTest:false,transparent:true}));fpr.renderOrder=12;fpr.visible=false;clip.add(fpr);
+function clipLook(){var B=S.barb,op=B.chide?0:(B.cop==null?1:B.cop);[[mB,1],[mS,1],[gmat,0.82]].forEach(function(q){var m=q[0],o=op*q[1],tr=o<0.999;if(m.transparent!==tr||m.depthWrite!==(op>0.6))m.needsUpdate=true;m.opacity=o;m.transparent=tr;m.depthWrite=op>0.6});tilt.visible=op>0.01;fpr.visible=op<0.6}
+function guardStand(){var g=$('gd');return g&&gdm.visible?+g.value:0}
+var cDir=new T.Vector3(),vbN=0;
 function setPose(pt,n,ya){var y=ya?ya.clone():new T.Vector3(0,1,0);y.addScaledVector(n,-y.dot(n));if(y.lengthSq()<1e-3){y.set(0,0,-1);y.addScaledVector(n,-y.dot(n))}y.normalize();var x=new T.Vector3().crossVectors(y,n);
- tq.setFromRotationMatrix(new T.Matrix4().makeBasis(x,y,n));tpos.copy(pt).addScaledVector(n,0.03);tn.copy(n);if(!clip.visible){clip.position.copy(tpos);clip.quaternion.copy(tq);clip.visible=true}}
+ tq.setFromRotationMatrix(new T.Matrix4().makeBasis(x,y,n));tpos.copy(pt).addScaledVector(n,0.015+guardStand());tn.copy(n);if(!clip.visible){clip.position.copy(tpos);clip.quaternion.copy(tq);clip.visible=true}}
 function capY(y){return 0.02+0.43*sm((y-2.05)/1.75)}
 function startAuto(){if(auto)return;setMode('clip');var rg=[];for(var y=2.0,i=0;y<=4.56;y+=0.19,i++)rg.push({y:y,d:i%2?-1:1});auto={r:rg,i:0,phi:0.9};$('auto').disabled=true;startBuzz()}
 function autoStep(dt){var rg=auto.r[auto.i];if(!rg){auto=null;$('auto').disabled=false;stopBuzz();commit();return}
@@ -1469,8 +1514,8 @@ var CAMS={front:['Front','أمامي',0,1.48,9.5],q34:['¾','¾',0.75,1.45,9.5],
 function goCam(k){var c=CAMS[k];var d=c[2]-th;d=Math.atan2(Math.sin(d),Math.cos(d));camGoal={th:th+d,ph:c[3],dist:c[4],t:k==='close'?new T.Vector3(0,2.75,0.5):k==='room'?new T.Vector3(0,0.5,-1):d0.t.clone()}}
 var pts={},lastD=0,rc=new T.Raycaster();
 function hit(e){var r=cv.getBoundingClientRect();rc.setFromCamera(new T.Vector2((e.clientX-r.left)/r.width*2-1,-((e.clientY-r.top)/r.height)*2+1),cam);var h=rc.intersectObject(skin)[0];if(!h)return null;var n=h.face.normal.clone();if(n.dot(rc.ray.direction)>0)n.negate();return{p:h.point.clone(),n:n}}
-function hover(e,cut){var h=hit(e);if(!h){if(!cut)clip.visible=false;return}if(cut&&lnS){setPose(h.p,h.n);lnPrevSet(lnS.p,h.p);return}setPose(h.p,h.n);
- if(cut){var cap=+$('gd').value,from=lastPt||h.p,d=from.distanceTo(h.p),nw0=performance.now(),sp0=(MECH.spd=d/Math.max(0.008,(nw0-MECH.lt)/1000),MECH.lt=nw0),rad=S.barb.tool==='line'?S.barb.lw:+$('bw').value*(S.barb.tool==='razor'?0.7:1),steps=Math.max(1,Math.ceil(d/(rad*0.4)));var fxv=h.p.clone().sub(from);fxv.addScaledVector(h.n,-fxv.dot(h.n));var fxo=fxv.lengthSq()>1e-8?fxv.normalize():lastFx;if(fxo){lastFx=fxo;setPose(h.p,h.n,fxo.clone().negate())}
+function hover(e,cut){var h=hit(e);if(!h){if(!cut)clip.visible=false;return}if(cut&&lnS){setPose(h.p,h.n);lnPrevSet(lnS.p,h.p);return}if(!cut)setPose(h.p,h.n,cDir.lengthSq()>0.5?cDir.clone().negate():undefined);
+ if(cut){var cap=+$('gd').value,from=lastPt||h.p,d=from.distanceTo(h.p),nw0=performance.now(),sp0=(MECH.spd=d/Math.max(0.008,(nw0-MECH.lt)/1000),MECH.lt=nw0),rad=S.barb.tool==='line'?S.barb.lw:+$('bw').value*(S.barb.tool==='razor'?0.7:1),steps=Math.max(1,Math.ceil(d/(rad*0.4)));var fxv=h.p.clone().sub(from);fxv.addScaledVector(h.n,-fxv.dot(h.n));if(fxv.lengthSq()>4e-6){fxv.normalize();if(cDir.lengthSq()>0.5&&fxv.dot(cDir)<0)fxv.negate();if(cDir.lengthSq()<0.5)cDir.copy(fxv);else cDir.lerp(fxv,0.2)}cDir.addScaledVector(h.n,-cDir.dot(h.n));var fxo=cDir.lengthSq()>1e-6?cDir.clone().normalize():lastFx;if(fxo){lastFx=fxo;setPose(h.p,h.n,fxo.clone().negate())}
   for(var s=1;s<=steps;s++)doCut(from.clone().lerp(h.p,s/steps),h.n,cap,fxo);lastPt=h.p;startBuzz()}else lastPt=null}
 function sculptMove(e){var h=hit(e);sculptHover(h);if(!sculpting||!h)return;if(BR.t==='grab'&&!brushMod.smooth)return;var from=lastSc||h.p,d=from.distanceTo(h.p),steps=Math.max(1,Math.min(12,Math.ceil(d/(BR.r*0.3))));for(var s=1;s<=steps;s++)brushAt(from.clone().lerp(h.p,s/steps),h.n,true);lastSc=h.p}
 st.addEventListener('contextmenu',function(e){e.preventDefault()});
@@ -1602,6 +1647,7 @@ function buildUI(){
   '<p class="desc" style="margin-top:10px">'+sp('Everything stays editable: blend, sliders, sculpt layers, skin and grooms are all non-destructive and undoable.','كل شيء يبقى قابلاً للتعديل: المزج والمنزلقات وطبقات النحت والبشرة والشعر غير مدمّرة ويمكن التراجع عنها.')+'</p>';
  var fs=R_('skin.age','Age','العمر',0,1,0.01,0);Object.keys(SECS).forEach(function(s,i){fs+=Sec_(SECS[s][0],SECS[s][1],MD.filter(function(m){return m[1]===s}).map(function(m){return R_('shape.'+m[0],m[2],m[3],-1,1,0.01,0)}).join(''),i<3)});
  B.face=Head_('Face shaping','تشكيل الوجه','Symmetric region controls. Double-click any slider to reset it.','عناصر تحكم متماثلة لكل منطقة. انقر نقراً مزدوجاً على أي منزلق لإعادته.')+fs+Btn_('resetShape','Reset all face shaping','إعادة ضبط تشكيل الوجه');
+ B.face+=Sec_('Import head','استيراد رأس','<p class="desc">'+sp('Load your own head (OBJ, GLB or FBX), or drop it on the viewport. It is fitted to this rig so hair, ears, skin maps and the controls keep working; adjust the fit below.','حمّل رأسك (OBJ أو GLB أو FBX) أو أسقطه على العارض. يُلاءَم مع النظام ليعمل الشعر والأذنان وخرائط البشرة والأدوات؛ اضبط الملاءمة بالأسفل.')+'</p>'+Btn_('hdImp','Import head…','استيراد رأس…','p')+'<p class="note" id="hdInfo"></p>'+Sel_('head.up','Up axis','المحور العلوي',[['y','Y up','Y للأعلى'],['z','Z up','Z للأعلى']])+R_('head.yaw','Facing (°)','الاتجاه (°)',-180,180,90)+R_('head.k','Scale','الحجم',0.6,1.6,0.01)+R_('head.oy','Height offset','إزاحة الارتفاع',-1,1,0.01)+R_('head.oz','Depth offset','إزاحة العمق',-1,1,0.01)+K_('head.eyes','Built-in eyes (when sockets are found)','العيون المدمجة (عند وجود تجاويف)')+'<div class="two">'+Btn_('hdFit','Re-fit','إعادة الملاءمة')+Btn_('hdReset','Default head','الرأس الافتراضي')+'</div>',true);
  B.sculpt=Head_('Free sculpt','النحت الحر','Paint shape directly onto the mesh. Hair, brows, lashes and eyes follow the surface automatically.','ارسم الشكل مباشرة على المجسم. يتبع الشعر والحواجب والرموش والعيون السطح تلقائياً.')+
   Ch_('brush.t',[['draw','Draw','رسم'],['inflate','Inflate','نفخ'],['grab','Grab','سحب'],['smooth','Smooth','تنعيم'],['flatten','Flatten','تسطيح'],['restore','Restore','استعادة']])+
   R_('brush.r','Radius','نصف القطر',0.05,0.8,0.01)+R_('brush.s','Strength','القوة',0.05,1,0.01)+K_('brush.sym','X symmetry','تماثل على المحور X')+K_('brush.inv','Invert (push in)','عكس (دفع للداخل)')+
@@ -1613,7 +1659,7 @@ function buildUI(){
  B.eyes=Head_('Eyes','العيون','Procedural irises with fibers, crypts and limbal ring. Lashes are real strands.','قزحيات إجرائية بألياف وتجاويف وحلقة حوفية. الرموش خصلات حقيقية.')+
   '<div class="sw" id="isw">'+ICOL.map(function(c){return'<button data-iris="'+c[0]+'" style="background:'+c[0]+'" data-ten="'+c[1]+'" data-tar="'+c[2]+'"></button>'}).join('')+'</div>'+
   '<div class="cols">'+C_('eyes.c','Iris','القزحية')+C_('eyes.c2','Right iris','القزحية اليمنى')+C_('eyes.sclera','Sclera','بياض العين')+'</div>'+K_('eyes.het','Heterochromia (different right eye)','تغاير لون العينين')+
-  R_('eyes.limbal','Limbal ring','الحلقة الحوفية',0,1,0.02)+R_('eyes.pupil','Pupil size','حجم البؤبؤ',0.5,1.8,0.02)+R_('eyes.size','Eyeball size','حجم مقلة العين',0.8,1.25,0.01)+R_('eyes.red','Redness','احمرار',0,1,0.02)+
+  R_('eyes.limbal','Limbal ring','الحلقة الحوفية',0,1,0.02)+R_('eyes.pupil','Pupil size','حجم البؤبؤ',0.5,1.8,0.02)+R_('eyes.size','Eyeball size','حجم مقلة العين',0.8,1.25,0.01)+R_('eyes.red','Redness','احمرار',0,1,0.02)+R_('eyes.lim','Eye rotation limit (°)','حد دوران العين (°)',10,45,1)+R_('eyes.trk','Tracking speed','سرعة التتبع',0,1,0.02)+
   Sel_('eyes.gaze','Gaze','اتجاه النظر',[['auto','Auto (camera / clipper)','تلقائي (الكاميرا / الماكينة)'],['cam','Look at camera','النظر إلى الكاميرا'],['cursor','Follow cursor','تتبع المؤشر'],['fwd','Straight ahead','إلى الأمام']])+
   Sec_('Eyelashes','الرموش',K_('lash.on','Show eyelashes','إظهار الرموش')+R_('lash.len','Length','الطول',0.4,1.8,0.02)+'<div class="cols">'+C_('lash.c','Color','اللون')+'</div>',true);
  B.makeup=Head_('Makeup','المكياج','Layered on top of the skin and saved with the character.','طبقات فوق البشرة وتُحفظ مع الشخصية.')+
@@ -1657,7 +1703,7 @@ function buildUI(){
  B.barber=Head_('Barber tools','أدوات الحلاقة','Cut scalp hair and beards with a simulated clipper, then score your fade.','قصّ شعر الرأس واللحية بماكينة محاكاة، ثم قيّم تدريجك.')+
   '<div class="carbox"><div id="carStats"></div><div class="two">'+Btn_('carGo','Open the shop','افتح الصالون','p')+Btn_('carShop','Shop','المتجر')+'</div><p class="desc">'+sp('Barber career: customers arrive with an order, you cut it under the clock, get paid by accuracy, speed, mood and tips, level up to unlock tools, and spend money on blades, motors and supplies.','مسيرة الحلاق: يصل الزبائن بطلب، تقصّه ضمن الوقت، وتُدفع لك الأجرة حسب الدقة والسرعة والمزاج والبقشيش، وترتقي لفتح الأدوات وتنفق المال على الشفرات والمحركات والمستلزمات.')+'</p>'+K_('barb.mech','Realistic clipper mechanics (battery, heat, oil, clog, nicks)','ميكانيكا ماكينة واقعية (بطارية، حرارة، زيت، انسداد، جروح)')+'</div>'+
   '<button id="cmBtn" class="p" style="margin-bottom:8px">'+sp('Customize clipper (C)','تخصيص الماكينة (C)')+'</button>'+
-  Sec_('Pro barber tools','أدوات الحلاقة الاحترافية',Sel_('barb.tool','Tool','الأداة',[['clipper','Clipper (guards)','ماكينة (أمشاط)'],['razor','Straight razor (shave to skin)','موس حاد (حلاقة حتى الجلد)'],['line','Line designer (razor lines)','رسم الخطوط (خطوط بالموس)'],['trimmer','Trimmer / edger (line-up)','تريمر / تحديد الحواف'],['scissors','Scissors (cut to length)','مقص (قص بطول محدد)'],['thin','Thinning shears (remove bulk)','مقص تخفيف (إزالة الكثافة)']])+K_('barb.sym','Mirror the cut on both sides','قص متماثل على الجانبين')+R_('barb.lever','Clipper lever (open = longer)','ذراع الماكينة (مفتوح = أطول)',0,1,0.05)+R_('barb.flick','Flick-out (soft blend at the heel)','السحب للخارج (دمج ناعم)',0,1,0.05)+R_('barb.slen','Scissor length','طول القص بالمقص',0.05,2,0.01)+R_('barb.thin','Thinning amount','مقدار التخفيف',0.05,0.8,0.01)+R_('barb.lw','Line width','عرض الخط',0.015,0.12,0.005)+K_('barb.straight','Straight lines (press, drag, release)','خطوط مستقيمة (اضغط واسحب ثم أفلت)')+'<p class="desc">'+sp('The blade cuts only the hair under it, edge on to your stroke, so the line follows your hand. Fades and challenges still use the clipper.','الشفرة تقص الشعر الذي تحتها فقط وبعرض متعامد مع حركتك، فيتبع خط القص يدك. التدريج والتحديات تستخدم الماكينة.')+'</p>',true)+
+  Sec_('Pro barber tools','أدوات الحلاقة الاحترافية',Sel_('barb.tool','Tool','الأداة',[['clipper','Clipper (guards)','ماكينة (أمشاط)'],['razor','Straight razor (shave to skin)','موس حاد (حلاقة حتى الجلد)'],['line','Line designer (razor lines)','رسم الخطوط (خطوط بالموس)'],['trimmer','Trimmer / edger (line-up)','تريمر / تحديد الحواف'],['scissors','Scissors (cut to length)','مقص (قص بطول محدد)'],['thin','Thinning shears (remove bulk)','مقص تخفيف (إزالة الكثافة)']])+K_('barb.sym','Mirror the cut on both sides','قص متماثل على الجانبين')+R_('barb.lever','Clipper lever (open = longer)','ذراع الماكينة (مفتوح = أطول)',0,1,0.05)+R_('barb.flick','Flick-out (soft blend at the heel)','السحب للخارج (دمج ناعم)',0,1,0.05)+R_('barb.slen','Scissor length','طول القص بالمقص',0.05,2,0.01)+R_('barb.thin','Thinning amount','مقدار التخفيف',0.05,0.8,0.01)+R_('barb.lw','Line width','عرض الخط',0.015,0.12,0.005)+K_('barb.chide','Hide the machine (H)','إخفاء الماكينة (H)')+R_('barb.cop','Machine opacity','شفافية الماكينة',0,1,0.02)+R_('barb.vib','Vibration','الاهتزاز',0,1,0.02)+K_('barb.straight','Straight lines (press, drag, release)','خطوط مستقيمة (اضغط واسحب ثم أفلت)')+'<p class="desc">'+sp('The blade cuts only the hair under it, edge on to your stroke, so the line follows your hand. Fades and challenges still use the clipper.','الشفرة تقص الشعر الذي تحتها فقط وبعرض متعامد مع حركتك، فيتبع خط القص يدك. التدريج والتحديات تستخدم الماكينة.')+'</p>',true)+
   '<div class="row"><label for="gd">'+sp('Guard comb (keys 1–6)','مشط الحماية (المفاتيح 1–6)')+'</label><select id="gd">'+GD.map(function(g2,i){return'<option value="'+g2[0]+'"'+(i===2?' selected':'')+' data-en="'+(i?g2[1]+' · '+['','1.5 mm','3 mm','6 mm','10 mm','13 mm'][i]:'No guard (skin)')+'" data-ar="'+(i?g2[1]+' · '+['','1.5 مم','3 مم','6 مم','10 مم','13 مم'][i]:'بدون مشط (حتى الجلد)')+'"></option>'}).join('')+'</select></div>'+
   '<div class="row"><label for="bw">'+sp('Cut width','عرض القص')+'<b id="bwv"></b></label><input type="range" id="bw" min="0.15" max="0.6" step="0.01" value="0.3"></div>'+
   '<div class="two">'+Btn_('auto','Auto fade','تدريج تلقائي')+Btn_('regrow','Regrow hair','إعادة إنبات الشعر')+'</div>'+
@@ -1706,9 +1752,10 @@ function onCtl(p){var a=p.split('.'),top=a[0],k=a[1];
  if(top==='eyes'){updEyeMats();return}
  if(top==='ear'){updEar();return}
  if(top==='tie'){updTie(k);return}
+ if(top==='head'){if(k==='eyes'){eyeVis();return}clearTimeout(headApply.t);if(HIMP.raw)headApply.t=setTimeout(headApply,450);return}
  if(top==='comb'){if(k==='teeth')mkCombTeeth();return}
  if(top==='groom'){if(k==='r')ring.scale.setScalar(S.groom.r);grmViz();return}
- if(top==='barb'){if(k==='mech')mechSet(S.barb.mech);return}
+ if(top==='barb'){if(k==='mech')mechSet(S.barb.mech);if(k==='chide'||k==='cop')clipLook();if(k==='tool')guard();return}
  if(top==='hair'&&k==='ear'){LY.scalp.U.uEar.value=cur.ear==='over'?1:0;return}
  if(top==='hair'&&(k==='frizz'||k==='stray'||k==='hl'||k==='hlc')){hairLive(cur);return}
  if(top==='hair'){if(k==='h'||k==='t'){updHairCols();paintDirty=true;return}if(k==='stub'||k==='nape'||k==='front')paintDirty=true;sched('scalp');return}
@@ -1758,7 +1805,8 @@ function bindUI(){var root=document.body;
  $('carGo').onclick=function(){if(CAR.on&&G.on&&G.tg==='car'){toast(tx('Finish the current cut first (button in the top bar)','أنهِ القصة الحالية أولاً (الزر في الأعلى)'),true);return}if(CAR.on)carNew();else carStart()};$('carShop').onclick=carShop;
  $('skGenB').onclick=skBake;var skf=document.createElement('input');skf.type='file';skf.multiple=true;skf.accept='image/*';skf.hidden=true;document.body.appendChild(skf);skf.onchange=function(){skLoadFiles(skf.files);skf.value=''};$('skLoad').onclick=function(){skf.click()};
  document.querySelectorAll('[data-skdl]').forEach(function(b){b.onclick=function(){skDownload(b.dataset.skdl)}});
- st.addEventListener('dragover',function(e){if(e.dataTransfer&&[].indexOf.call(e.dataTransfer.types,'Files')>=0)e.preventDefault()});st.addEventListener('drop',function(e){if(!e.dataTransfer||!e.dataTransfer.files.length)return;e.preventDefault();skLoadFiles(e.dataTransfer.files)});
+ st.addEventListener('dragover',function(e){if(e.dataTransfer&&[].indexOf.call(e.dataTransfer.types,'Files')>=0)e.preventDefault()});st.addEventListener('drop',function(e){if(!e.dataTransfer||!e.dataTransfer.files.length)return;e.preventDefault();var fs=e.dataTransfer.files,m=[].find.call(fs,function(f){return/\.(obj|glb|gltf|fbx)$/i.test(f.name)});if(m)headLoad(m);else skLoadFiles(fs)});
+ var hdf=document.createElement('input');hdf.type='file';hdf.accept='.obj,.glb,.gltf,.fbx';hdf.hidden=true;document.body.appendChild(hdf);hdf.onchange=function(){if(hdf.files[0])headLoad(hdf.files[0]);hdf.value=''};$('hdImp').onclick=function(){hdf.click()};$('hdFit').onclick=function(){if(HIMP.raw)headApply();else toast(tx('Import a head first','استورد رأساً أولاً'),true)};$('hdReset').onclick=headReset;hdInfo();
  var SKP={weathered:{mel:0.62,red:0.56,custom:'',bump:0.95,rough:0.54,oil:0.5,sss:0.8,trn:0.9,freck:0.3,age:0.4,under:0.45,flush:0.55,blotch:0.65,micro:1.1,fuzz:0.3},young:{bump:0.75,rough:0.55,oil:0.4,sss:0.9,freck:0.15,age:0,under:0.2,flush:0.4,blotch:0.3,micro:0.6,fuzz:0.45},aged:{bump:1.15,rough:0.62,oil:0.3,sss:0.75,freck:0.45,age:0.85,under:0.55,flush:0.6,blotch:0.8,micro:1.4,fuzz:0.25},oily:{oil:1,rough:0.42,bump:1,flush:0.55,micro:0.9}};
  document.querySelectorAll('[data-skp]').forEach(function(b){b.onclick=function(){Object.assign(S.skin,SKP[b.dataset.skp]);defDirty=true;paintDirty=true;updSkinU();updHairCols();syncUI();commit()}});$('grGo').onclick=function(){setMode('groom')};$('tiePlace').onclick=function(){setMode('tieplace')};
  $('grReset').onclick=function(){grmReset();applyGroomAll();grmViz();commit()};
@@ -1776,7 +1824,7 @@ function bindUI(){var root=document.body;
  $('meshL').onchange=function(e){var lv=+e.target.value;note(tx('Rebuilding mesh…','جارٍ إعادة بناء المجسم…'));setTimeout(function(){setupMesh(lv);buildAll();refreshAll();commit();note('')},30)};
  addEventListener('keydown',function(e){var tg=e.target;if((tg.tagName==='INPUT'&&tg.type!=='checkbox'&&tg.type!=='range')||tg.tagName==='SELECT'&&!e.ctrlKey&&!e.metaKey)return;var k=e.key.toLowerCase();
   if((e.ctrlKey||e.metaKey)&&k==='z'){e.preventDefault();if(e.shiftKey)redo();else undo();return}if((e.ctrlKey||e.metaKey)&&k==='y'){e.preventDefault();redo();return}if(e.ctrlKey||e.metaKey||e.altKey)return;
-  if(k==='c')toggleCM(!cm);else if(k==='escape')toggleCM(false);else if(k==='g')showTab('groom');else if(MECH.on&&'obqr'.indexOf(k)>=0&&k.length===1)mechAct(k);else if(k>='1'&&k<='6'){$('gd').selectedIndex=+k-1;guard();buildMenu()}
+  if(k==='c')toggleCM(!cm);else if(k==='escape')toggleCM(false);else if(k==='g')showTab('groom');else if(MECH.on&&'obqr'.indexOf(k)>=0&&k.length===1)mechAct(k);else if(k==='h'){S.barb.chide=!S.barb.chide;clipLook();syncUI()}else if(k>='1'&&k<='6'){$('gd').selectedIndex=+k-1;guard();buildMenu()}
   else if(k==='['||k===']'){var f9=k==='['?0.85:1.18;if(mode==='groom'){S.groom.r=clamp(S.groom.r*f9,0.05,1.2);ring.scale.setScalar(S.groom.r)}else if(mode==='comb')S.comb.r=clamp(S.comb.r*f9,0.15,1.2);else{BR.r=clamp(BR.r*f9,0.05,0.8);ring.scale.setScalar(BR.r)}syncUI()}});
  wheelUI();palUI()}
 
@@ -1826,7 +1874,7 @@ var tab0='blend';try{tab0=localStorage.getItem('hf_tab')||'blend'}catch(e){}if(!
 ready=true;showTab(tab0);setMode(mode);syncUI();applyDeform();paintSkin();last=snap();updUR();
 var clock=new T.Clock(),fpsA=0,fpsN=0;
 // HF_TEST: headless harness steps frames manually instead of running the rAF loop
-if(window.HF_TEST)window.HF={SKU:SKU,geo:function(){return g},skinMat:skinMat,updShort:updShort,EARD:function(){return EARD},S:S,BR:BR,LY:LY,frame:function(n){for(var i=0;i<(n||1);i++)frame()},setCtl:setCtl,syncUI:syncUI,showTab:showTab,goCam:goCam,undo:undo,redo:redo,brushAt:brushAt,commit:commit,randomAll:randomAll,setupMesh:setupMesh,buildAll:buildAll,refreshAll:refreshAll,gStart:gStart,cutAt:cutAt,exportOBJ:exportOBJ,saveJSON:saveJSON,loadJSON:loadJSON,anim:ANIM,RIMS:function(){return RIMS},cam:function(t,p,d){th=t;ph=p;dist=d;camGoal=null;place()},setTgt:function(x,y,z){tgt.set(x,y,z);place()},snap:snap,STG:STG,nick:nick,MECH:MECH,CAR:CAR,carStart:carStart,carEnd:carEnd,carNew:carNew,mechAct:mechAct,accuracy:accuracy,toggleCM:toggleCM,skGen:skGen,skBake:skBake,SKS:SKS,clip:clip,pick:function(x,y){var h=hit({clientX:x,clientY:y});return h?h.p.toArray().map(function(v){return+v.toFixed(3)}):null},mode:function(){return mode+'/'+S.barb.tool+'/'+cutting}};
+if(window.HF_TEST)window.HF={SKU:SKU,geo:function(){return g},skinMat:skinMat,updShort:updShort,EARD:function(){return EARD},S:S,BR:BR,LY:LY,frame:function(n){for(var i=0;i<(n||1);i++)frame()},setCtl:setCtl,syncUI:syncUI,showTab:showTab,goCam:goCam,undo:undo,redo:redo,brushAt:brushAt,commit:commit,randomAll:randomAll,setupMesh:setupMesh,buildAll:buildAll,refreshAll:refreshAll,gStart:gStart,cutAt:cutAt,exportOBJ:exportOBJ,saveJSON:saveJSON,loadJSON:loadJSON,anim:ANIM,RIMS:function(){return RIMS},cam:function(t,p,d){th=t;ph=p;dist=d;camGoal=null;place()},setTgt:function(x,y,z){tgt.set(x,y,z);place()},snap:snap,STG:STG,headLoad:headLoad,HIMP:HIMP,eyes:eyes,clipLook:clipLook,eyeAng:function(){return [eyeYaw,eyePit]},nick:nick,MECH:MECH,CAR:CAR,carStart:carStart,carEnd:carEnd,carNew:carNew,mechAct:mechAct,accuracy:accuracy,toggleCM:toggleCM,skGen:skGen,skBake:skBake,SKS:SKS,clip:clip,pick:function(x,y){var h=hit({clientX:x,clientY:y});return h?h.p.toArray().map(function(v){return+v.toFixed(3)}):null},mode:function(){return mode+'/'+S.barb.tool+'/'+cutting}};
 mechBuild();carLoad();carUI();skInit();
 (function loop(){requestAnimationFrame(loop);if(!window.HF_TEST)frame()})();
 function frame(){var dt=Math.min(clock.getDelta(),0.05),tm=clock.elapsedTime;
@@ -1838,10 +1886,11 @@ function frame(){var dt=Math.min(clock.getDelta(),0.05),tm=clock.elapsedTime;
   clip.position.copy(cam.position).addScaledVector(fw,7).addScaledVector(rg,-1.7).addScaledVector(uv,-1.3);
   clip.quaternion.copy(cam.quaternion).multiply(new T.Quaternion().setFromEuler(new T.Euler(0,Math.sin(tm*0.8)*0.8,0)));clip.scale.setScalar(1.1);tilt.rotation.z=0;clip.visible=true}
  else if(clip.visible){clip.position.lerp(tpos,0.45);clip.quaternion.slerp(tq,0.35);var sc=(+$('bw').value)*LD.bl.w/0.3;clip.scale.setScalar(sc);
-  if(cutting||auto){clip.position.addScaledVector(tn,Math.sin(tm*140)*0.006*sc*LD.mt.vib);tilt.rotation.z=Math.sin(tm*95)*0.012*LD.mt.vib}else tilt.rotation.z=0}
+  if(gdm.visible)gRib.scale.z=Math.max(0.01,(+$('gd').value)/sc);fpr.position.z=-(0.015+guardStand())/sc;
+  if(cutting||auto){var vb=(S.barb.vib==null?0.5:S.barb.vib)*LD.mt.vib,ph=(vbN&1)?1:-1;tilt.position.set(ph*0.0016*vb,(Math.random()-0.5)*0.0012*vb,0);tilt.rotation.z=ph*0.003*vb}else{tilt.position.set(0,0,0);tilt.rotation.z=0}}
  if(G.on){G.t-=dt;G.last+=dt;if(G.last>0.45){G.last=0;if(G.dirty){G.dirty=false;G.acc=accuracy();drawMini()}}hud();if(G.t<=0)gEnd()}
  if(defDirty)applyDeform();if(paintDirty)paintSkin();
- updEyes(dt);stepP(dt);for(var n in LY){var L=LY[n];if(L.dirty&&L.obj){L.obj.geometry.attributes.aMisc.needsUpdate=true;L.dirty=false;shortDirty=true}}if(shortDirty&&tm-shortT>0.1){shortT=tm;updShort()}tmNow=tm;mechTick(dt);physUpdate(dt,tm);stgTick(dt);updHairLight();if(earG.visible)earG.children.forEach(function(c){c.visible=c.userData.sx*cam.position.x>0});if(key.shadow.map){LU.uShMap.value=key.shadow.map.texture;LU.uShTx.value=1/key.shadow.mapSize.x;LU.uShRng.value=key.shadow.camera.far-key.shadow.camera.near;LU.uShOn.value=S.hmat.shadow>0?1:0}
+ updEyes(dt);stepP(dt);for(var n in LY){var L=LY[n];if(L.dirty&&L.obj){L.obj.geometry.attributes.aMisc.needsUpdate=true;L.dirty=false;shortDirty=true}}if(shortDirty&&tm-shortT>0.1){shortT=tm;updShort()}tmNow=tm;vbN++;mechTick(dt);physUpdate(dt,tm);stgTick(dt);updHairLight();if(earG.visible)earG.children.forEach(function(c){c.visible=c.userData.sx*cam.position.x>0});if(key.shadow.map){LU.uShMap.value=key.shadow.map.texture;LU.uShTx.value=1/key.shadow.mapSize.x;LU.uShRng.value=key.shadow.camera.far-key.shadow.camera.near;LU.uShOn.value=S.hmat.shadow>0?1:0}
  ren.render(scene,cam);
  fpsA+=dt;fpsN++;if(fpsA>0.5){$('sbF').textContent=Math.round(fpsN/fpsA)+' fps';$('phn').textContent=PH.G?(PH.G+tx(' guides · sim ',' دليل · محاكاة ')+PH.ms.toFixed(2)+' ms'+(PH.asleep?tx(' · asleep',' · ساكن'):'')):'';fpsA=fpsN=0}}
 })();
