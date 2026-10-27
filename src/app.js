@@ -38,6 +38,7 @@ var S={
  phys:{on:true,k:150,damp:0.3,grav:1,wind:0},
  hmat:{shine:1,gloss:1,trans:1,grey:0,soft:0.7,shadow:1},
  comb:{t:'comb',r:0.45,str:1},
+ ear:{margin:0.08,sb:2.4,back:2.35,taper:0.85,slope:0.9,guides:false},
  light:{rig:'studio',rot:0,int:1,expo:1,tone:'linear',bg:'rig',bgc:'#202226'},
  view:{mode:'lit',focal:42,hair:true,turn:false}
 };
@@ -337,39 +338,46 @@ var clayMat=new T.MeshStandardMaterial({color:0xbab3aa,roughness:0.72,metalness:
 var wireMat=new T.MeshBasicMaterial({color:0x7fd0ff,wireframe:true,transparent:true,opacity:0.22,depthWrite:false});
 
 /* ================= strand hair (instanced, GPU-evaluated) ================= */
+// Barber's ear outline (uEar 0). The ear is detected from the mesh (detectEar), so the outline follows
+// sculpted/resized ears. uEarC: flap base |x|, centre y, z; uEarR: clearance radii (y,z, margin included);
+// uEarB: sideburn bottom y, y where the back hairline starts sloping, taper width, back-line slope.
+var EAR_GLSL=`
+uniform float uEar;uniform vec3 uEarC;uniform vec2 uEarR;uniform vec4 uEarB;
+bool earCut(){
+ if(uEar<-0.5||uEar>0.5)return false;
+ float ax=abs(vW.x);if(ax<uEarC.x-0.5)return false;
+ float f=(fract(vVar*31.7)-0.5)*0.09;
+ vec2 q=vec2((vW.y-uEarC.y)/uEarR.x,(vW.z-uEarC.z)/uEarR.y);
+ if(dot(q,q)<1.0+f*2.0)return true;
+ float f2=(fract(vVar*57.3)-0.5)*0.16;
+ float zb=uEarC.z-uEarR.y*0.86-max(0.0,uEarB.y-vW.y)*uEarB.w+f;
+ return vW.y<uEarC.y&&vW.z>zb&&(vW.z<uEarC.z+uEarR.y+f||vW.y<uEarB.x+f2);
+}
+`;
 var HAIR_VS=`
 attribute float aT;attribute vec3 aRoot;attribute vec3 aDir;attribute vec3 aNrm;attribute vec4 aMisc;attribute float aVar;attribute vec4 aClump;attribute vec3 aCC;
 uniform float uFlow;uniform vec3 uHC;uniform vec3 uHR;uniform sampler2D uShell;uniform float uVol;uniform float uVolF;uniform float uLayer;uniform float uGravF;uniform float uClumpA;uniform float uHide;uniform float uDrape;
 uniform sampler2D uPh;uniform float uGW;uniform float uCurl;uniform float uSag;uniform float uPhys;uniform vec4 uClip;uniform float uCoil;uniform float uFreq;uniform float uWaveA;uniform float uWaveF;uniform float uLock;uniform float uBend;
 varying vec3 vT;varying vec3 vN;varying vec3 vV;varying float vP;varying float vVar;varying float vS;varying vec3 vW;
 // hair flows around the ear (tucked behind / in front of it, side chosen per strand from its root) instead of tenting over it or poking through
-uniform float uEar;float shellR(vec3 u);
-// Ear routing (uEar: -1 off, 0 tucked behind, 1 covering). Flap: |x| 1.12..1.42, y 2.25..3.3, z -1.15..-0.45.
+uniform float uEar;uniform vec3 uEarC;uniform vec2 uEarR;uniform vec4 uEarB;float shellR(vec3 u);
+// Ear routing (uEar: -1 off, 0 tucked behind, 1 covering) around the detected ear (uEarC/uEarR).
 vec3 earFix(vec3 p,float t){
  if(uEar<-0.5)return p;
  float ax=abs(p.x),sx=p.x<0.0?-1.0:1.0;
- vec2 qe=vec2((p.y-2.78)/0.6,(p.z+0.8)/0.42);float e2=dot(qe,qe);
- if(ax<0.85)return p;
+ vec2 qe=(vec2(p.y,p.z)-uEarC.yz)/uEarR;float e2=dot(qe,qe);
+ if(ax<uEarC.x-0.25)return p;
  float w=smoothstep(0.01,0.12,t)*smoothstep(1.0,0.5,e2);
  if(uEar<0.5){
-  // tucked: hair that would cross the ear sweeps behind it (and stays behind below it, exposing the neck);
-  // temple/sideburn strands go in front; everything near the flap lies flat so it slips under its rim
-  float yC=2.78,hw=0.38*(p.y>yC?sqrt(max(0.0,1.0-(p.y-yC)*(p.y-yC)/0.36)):1.0);
-  float wy=p.y>yC?smoothstep(3.42,3.12,p.y):smoothstep(1.35,1.85,p.y);
-  bool fr=aRoot.z>-0.42&&aRoot.y<2.95;
-  float zb=-0.8-hw*1.1,zf=-0.8+hw*1.1;
-  float pin=smoothstep(0.01,0.12,t);
-  if(ax>0.85&&p.z<zf+0.1&&p.z>zb){
-   float ws=pin*wy*smoothstep(zf+0.1,zf-0.04,p.z);
-   p.z=mix(p.z,fr?zf+0.02:zb,ws);
-   w=max(w,ws*0.8);
-  }
-  vec3 qq=(p-uHC)/uHR;float ll=length(qq);vec3 uu=qq/ll;float sr=shellR(uu)+0.01;
-  if(ll>sr)p=mix(p,uHC+uHR*uu*sr,w);
+  // taper: approaching the ear outline the hair is pressed onto the scalp so it thins out instead of ending in a wall
+  float et=length((vec2(p.y,p.z)-uEarC.yz)/uEarR);
+  float wt=smoothstep(1.05+uEarB.z,1.05,et)*smoothstep(0.01,0.1,t)*step(uEarC.x-0.35,ax);
+  if(wt>0.0){vec3 qq=(p-uHC)/uHR;float ll=length(qq);vec3 uu=qq/ll;float sr=shellR(uu)+0.012;if(ll>sr)p=mix(p,uHC+uHR*uu*sr,wt*0.9);}
+  return p;
  }else{
   // covering: every hair layer is lifted by the ear's protrusion (keeps the layering, so no sparse sheet),
   // easing in above the ear and draping out slowly below it
-  vec2 qc=vec2((p.y-2.78)/(p.y<2.78?1.0:0.62),(p.z+0.8)/0.5);float f2=dot(qc,qc);
+  vec2 qc=vec2((p.y-uEarC.y)/(p.y<uEarC.y?uEarR.x*1.7:uEarR.x*1.05),(p.z-uEarC.z)/(uEarR.y*1.15));float f2=dot(qc,qc);
   if(f2<1.0&&ax<1.75)p.x=sx*(ax+0.36*smoothstep(1.0,0.3,f2)*smoothstep(0.01,0.12,t));
  }
  return p;}
@@ -428,9 +436,11 @@ vec3 hp(float t){
 }
 void main(){
  if(aMisc.x<uHide){gl_Position=vec4(2.0,2.0,2.0,1.0);vT=vec3(0.0,1.0,0.0);vN=vT;vV=vT;vP=0.0;vVar=1.0;vS=0.0;return;}
- vec3 p0=hp(aT);
+ float tc=aT;
+ if(uEar>-0.5&&uEar<0.5&&abs(aRoot.x)>uEarC.x-0.35){float er=length((vec2(aRoot.y,aRoot.z)-uEarC.yz)/uEarR);tc*=mix(0.45,1.0,smoothstep(1.05,1.05+uEarB.z*0.55,er));}
+ vec3 p0=hp(tc);
  bool nt=aT<0.98;
- vec3 p1=hp(nt?aT+0.02:aT-0.02);
+ vec3 p1=hp(nt?tc+0.02:tc-0.02);
  vec3 tg=nt?(p1-p0):(p0-p1);
  vec4 mv=viewMatrix*vec4(p0,1.0);
  vT=mat3(viewMatrix)*normalize(tg+vec3(0.0,1e-5,0.0));
@@ -444,6 +454,7 @@ uniform float uShine;uniform float uGloss;uniform float uTrans;uniform float uGr
 uniform sampler2D uShMap;uniform mat4 uShM;uniform float uShOn;uniform float uShTx;uniform float uShRng;uniform float uShD;
 varying vec3 vT;varying vec3 vN;varying vec3 vV;varying float vP;varying float vVar;varying float vS;varying vec3 vW;
 #include <packing>
+${EAR_GLSL}
 float kk(vec3 T,vec3 H,float e){float d=dot(T,H);float s=sqrt(max(0.0,1.0-d*d));return pow(s,e)*smoothstep(-1.0,0.0,d);}
 // Deep-opacity style self-shadow from the key light's shadow map: hair is translucent, so light fades
 // with the thickness of hair in front of the fragment instead of switching off at the first strand.
@@ -479,6 +490,7 @@ vec3 shade(vec3 L,vec3 lc,vec3 T,vec3 N,vec3 V,vec3 base,float sh){
  return (diff*lc+spec)*sh+trans*mix(0.25,1.0,sh);
 }
 void main(){
+ if(earCut())discard;
  vec3 T=normalize(vT);vec3 N=normalize(vN);vec3 V=normalize(vV);
  vec3 base=mix(uHair,uTip,smoothstep(0.15,1.0,vP)*0.7);
  base=mix(base,uGreyC,step(fract(vVar*53.17),uGrey));
@@ -500,12 +512,32 @@ void main(){
  #include <tonemapping_fragment>
  #include <encodings_fragment>
 }`;
-var HAIR_DFS='#include <packing>\nvoid main(){gl_FragColor=packDepthToRGBA(gl_FragCoord.z);}';
-var LU={uShMap:{value:null},uShM:{value:key.shadow.matrix},uShOn:{value:0},uShTx:{value:1/2048},uShRng:{value:20},uShD:{value:14},uL1:{value:new T.Vector3(0,0,1)},uL2:{value:new T.Vector3(0,0,1)},uC1:{value:new T.Vector3(1.25,1.18,1.08)},uC2:{value:new T.Vector3(0.22,0.28,0.38)},uAmb:{value:new T.Vector3(0.42,0.4,0.38)}};
+var HAIR_DFS='#include <packing>\nvarying vec3 vW;varying float vVar;\n'+EAR_GLSL+'void main(){if(earCut())discard;gl_FragColor=packDepthToRGBA(gl_FragCoord.z);}';
+var LU={uEarC:{value:new T.Vector3(1.1,2.78,-0.8)},uEarR:{value:new T.Vector2(0.59,0.43)},uEarB:{value:new T.Vector4(2.4,2.35,0.85,0.9)},uShMap:{value:null},uShM:{value:key.shadow.matrix},uShOn:{value:0},uShTx:{value:1/2048},uShRng:{value:20},uShD:{value:14},uL1:{value:new T.Vector3(0,0,1)},uL2:{value:new T.Vector3(0,0,1)},uC1:{value:new T.Vector3(1.25,1.18,1.08)},uC2:{value:new T.Vector3(0.22,0.28,0.38)},uAmb:{value:new T.Vector3(0.42,0.4,0.38)}};
 var SHW=128,SHH=64,SHD=new Uint8Array(SHW*SHH),SHF=new Float32Array(SHW*SHH),SHT=new Float32Array(SHW*SHH);
 var shellTex=new T.DataTexture(SHD,SHW,SHH,T.LuminanceFormat,T.UnsignedByteType);shellTex.wrapS=T.RepeatWrapping;shellTex.wrapT=T.ClampToEdgeWrapping;shellTex.magFilter=shellTex.minFilter=T.LinearFilter;shellTex.generateMipmaps=false;
 var HC=new T.Vector3(0,3.15,-0.35),HR=new T.Vector3(1.38,1.5,1.5);
 // equirect map (ellipsoid space) of the outermost head surface; groomed strands ride on it
+/* ================= ear detection & hair distribution =================
+ The ear flap is found on the deformed mesh (vertices sticking out past the side of the skull in the ear
+ region), per side, and averaged. Its bounds drive the hairline, the clearance outline and the guides. */
+var EAR={x:1.1,y:2.78,z:-0.8,ry:0.53,rz:0.37,n:0,sides:0};
+function detectEar(){if(typeof P==='undefined'||!P||typeof REST==='undefined')return EAR;var pa=P.array,sd=[[1e9,-1e9,1e9,-1e9,1e9,0],[1e9,-1e9,1e9,-1e9,1e9,0]],i;
+ for(i=0;i<NV;i++){var rx=REST[i*3],ry=REST[i*3+1],rz=REST[i*3+2];if(!(Math.abs(rx)>1.27&&ry>2.1&&ry<3.45&&rz>-1.25&&rz<-0.3))continue;
+  var b=sd[rx>0?0:1],ax=Math.abs(pa[i*3]),y=pa[i*3+1],z=pa[i*3+2];b[0]=Math.min(b[0],y);b[1]=Math.max(b[1],y);b[2]=Math.min(b[2],z);b[3]=Math.max(b[3],z);b[4]=Math.min(b[4],ax);b[5]++}
+ var ok=sd.filter(function(b){return b[5]>=8});if(!ok.length)return EAR;
+ var a=[0,0,0,0,0];ok.forEach(function(b){for(var k=0;k<5;k++)a[k]+=b[k]/ok.length});
+ EAR={x:a[4]-0.14,y:(a[0]+a[1])/2,z:(a[2]+a[3])/2+0.035,ry:(a[1]-a[0])/2*1.04,rz:(a[3]-a[2])/2*1.2,n:sd[0][5]+sd[1][5],sides:ok.length};return EAR}
+function earNote(){var e=$('earInfo');if(e)e.textContent=EAR.n?tx('Detected '+EAR.sides+' ear(s), '+EAR.n+' vertices · height '+(EAR.ry*2).toFixed(2)+' · width '+(EAR.rz*2).toFixed(2)+' · centre y '+EAR.y.toFixed(2),'تم اكتشاف '+EAR.sides+' أذن، '+EAR.n+' رأس · الارتفاع '+(EAR.ry*2).toFixed(2)+' · العرض '+(EAR.rz*2).toFixed(2)+' · المركز y '+EAR.y.toFixed(2)):tx('No ear found on the mesh, using defaults','لم يُعثر على أذن، تُستخدم القيم الافتراضية')}
+var earG=new T.Group();earG.visible=false;earG.renderOrder=12;scene.add(earG);
+function updEar(){var E=S.ear,m=E.margin,R=LU.uEarR.value;LU.uEarC.value.set(EAR.x,EAR.y,EAR.z);R.set(EAR.ry+m,EAR.rz+m);LU.uEarB.value.set(E.sb,E.back,E.taper,E.slope);earNote();
+ while(earG.children.length){earG.children.pop().children.forEach(function(c){c.geometry.dispose()})}
+ earG.visible=!!E.guides;if(!E.guides)return;
+ var mk=function(col){return new T.LineBasicMaterial({color:col,depthTest:false,transparent:true,opacity:0.95})},mE=mk(0xffd04a),mC=mk(0x4fb3d9),mS=mk(0xff6a5a),mT=mk(0x7be08a);
+ [1,-1].forEach(function(sx){var X=sx*(EAR.x+0.42),grp=new T.Group();grp.userData.sx=sx;earG.add(grp);var line=function(pts,mat,loop){var g=new T.BufferGeometry().setFromPoints(pts),o=loop?new T.LineLoop(g,mat):new T.Line(g,mat);o.renderOrder=12;grp.add(o)},ell=function(ry,rz,mat){var p=[];for(var k=0;k<64;k++){var a=k/64*Math.PI*2;p.push(new T.Vector3(X,EAR.y+Math.sin(a)*ry,EAR.z+Math.cos(a)*rz))}line(p,mat,true)};
+  ell(EAR.ry,EAR.rz,mE);ell(R.x,R.y,mC);ell(R.x*(1.05+E.taper)/1.05,R.y*(1.05+E.taper)/1.05,mT);
+  var zf=EAR.z+R.y;line([new T.Vector3(X,E.sb,zf),new T.Vector3(X,E.sb,zf+0.35),new T.Vector3(X,EAR.y,zf+0.35)],mS);
+  var bk=[];for(var y=EAR.y;y>=1.75;y-=0.05)bk.push(new T.Vector3(X,y,EAR.z-R.y*0.86-Math.max(0,E.back-y)*E.slope));line(bk,mS)})}
 function isEar(x,y,z){return Math.abs(x)>1.17&&y>2.2&&y<3.35&&z>-1.2&&z<-0.25}
 function buildShell(){var m=SHF,pa=P.array,i,x,y,dx,dy;m.fill(0);
  for(i=0;i<NV;i++){var py0=pa[i*3+1];if(py0<1.6)continue;if(isEar(REST[i*3],REST[i*3+1],REST[i*3+2]))continue;var qx=(pa[i*3]-HC.x)/HR.x,qy=(py0-HC.y)/HR.y,qz=(pa[i*3+2]-HC.z)/HR.z,l=Math.sqrt(qx*qx+qy*qy+qz*qz);if(l<1e-4)continue;
@@ -590,7 +622,7 @@ function flowDir(c,s,tg,D){var x=s.x,y=s.y,z=s.z,f=c.flow,pt=c.part===undefined?
  if(f!=='crown'){var w=sm((-z-0.3)/0.7)*sm((3.95-y)/0.5);D.lerp(new T.Vector3(x*0.3,-1,-0.3),w)}
  return D}
 function edAt(sp){var t=sp.ti*3,w=1-sp.u-sp.v;return EARD[IX[t]]*w+EARD[IX[t+1]]*sp.u+EARD[IX[t+2]]*sp.v}
-function hairW(x,y,z,ed){if(y<1.95||isEar(x,y,z))return 0;var eey=(y-2.76)/0.48;if(Math.abs(x)>0.95&&Math.abs(eey)<1&&Math.abs(z+0.71)<0.34*Math.sqrt(1-eey*eey))return 0;var yl=yLow(x,y,z),ye=z>-0.45?2.45+0.35*sm((-0.3-z)/0.15):z>-1.0?2.8:2.8+(cur.nape-2.8)*sm((-1.0-z)/0.3);yl=Math.max(yl,ye);
+function hairW(x,y,z,ed){if(y<1.95||isEar(x,y,z))return 0;var eey=(y-EAR.y)/(EAR.ry*0.9);if(Math.abs(x)>EAR.x-0.15&&Math.abs(eey)<1&&Math.abs(z-EAR.z)<EAR.rz*0.95*Math.sqrt(1-eey*eey))return 0;var yl=yLow(x,y,z),ye=z>-0.45?2.45+0.35*sm((-0.3-z)/0.15):z>-1.0?2.8:2.8+(cur.nape-2.8)*sm((-1.0-z)/0.3);yl=Math.max(yl,ye);
  HLY=yl;return sm((y-yl+0.06)/0.12)*sm((ed-0.03)/0.05)}
 function buildScalp(){var L=LY.scalp;disposeL(L);var c=cur,R=rng(c.seed),n=Math.round(c.count*1000),H=L.H=newH(n),k=0,tries=0,U=L.U;
  HU.sag0=0.35/(0.2+c.len)*(1-c.lift*0.6);U.uSag.value=HU.sag0*PH.grav*1.8;U.uEar.value=c.ear==='over'?1:0;U.uCurl.value=c.curl;U.uCoil.value=c.coil||0;U.uFreq.value=c.freq||0;U.uWaveA.value=c.wave||0;U.uLock.value=c.lock||0;U.uBend.value=c.bend;
@@ -704,7 +736,7 @@ function applyDeform(){defDirty=false;var pa=P.array,ex=animExpr||S.expr,q,k;pa.
  for(q=0;q<COMPS.length;q++){var C=COMPS[q],v=C.src==='shape'?S.shape[C.id]:C.src==='expr'?ex[C.id]:S.skin.age;if(!v)continue;var I=C.idx,Dd=C.d;
   for(k=0;k<I.length;k++){var j=I[k]*3,m=k*3;pa[j]+=Dd[m]*v;pa[j+1]+=Dd[m+1]*v;pa[j+2]+=Dd[m+2]*v}}
  for(k=0;k<pa.length;k++)pa[k]+=SD[k];
- P.needsUpdate=true;g.computeVertexNormals();g.computeBoundingSphere();buildShell();fitFeatures();for(var n in LY)rebind(LY[n])}
+ P.needsUpdate=true;g.computeVertexNormals();g.computeBoundingSphere();buildShell();detectEar();updEar();fitFeatures();for(var n in LY)rebind(LY[n])}
 
 /* ================= skin painting (tone, makeup, beard shadow) ================= */
 var STOPS=[[0,[0.98,0.86,0.78]],[0.2,[0.93,0.76,0.64]],[0.4,[0.84,0.62,0.48]],[0.6,[0.66,0.46,0.33]],[0.8,[0.45,0.29,0.2]],[1,[0.24,0.15,0.11]]];
@@ -1005,7 +1037,7 @@ function restore(sn){restoring=true;var old=JSON.parse(JSON.stringify(S)),nw=JSO
  refreshAll();restoring=false}
 function undo(){if(!UND.length)return;RED.push(last);last=UND.pop();restore(last);updUR()}
 function redo(){if(!RED.length)return;UND.push(last);last=RED.pop();restore(last);updUR()}
-function refreshAll(){shortDirty=true;updSkinU();updEyeMats();updHairCols();updHairMat();updPhys();applyLight();applyView();paintDirty=true;defDirty=true;syncUI();stats0()}
+function refreshAll(){shortDirty=true;updEar();updSkinU();updEyeMats();updHairCols();updHairMat();updPhys();applyLight();applyView();paintDirty=true;defDirty=true;syncUI();stats0()}
 
 /* ================= save / load / export ================= */
 function b64(ta){var u=new Uint8Array(ta.buffer,ta.byteOffset,ta.byteLength),s='';for(var i=0;i<u.length;i+=0x8000)s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(s)}
@@ -1107,7 +1139,8 @@ function buildUI(){
   '<div class="two">'+Btn_('regrow2','Regrow','إعادة الإنبات')+Btn_('rd','New seed','بذرة جديدة')+'</div>'+K_('view.hair','Show hair','إظهار الشعر')+
   Sec_('Flow & volume','الانسياب والحجم',Sel_('hair.flow','Combing direction','اتجاه التسريح',[['crown','Natural crown whorl','دوّامة طبيعية من التاج'],['forward','Forward fringe','غرّة للأمام'],['back','Swept back','مسرّح للخلف'],['side','Side part','فرق جانبي'],['center','Center part (curtains)','فرق في المنتصف (ستارة)'],['up','Up & back (quiff / pompadour)','للأعلى والخلف (كويف / بومبادور)'],['legacy','Classic spiky (v2)','الشائك الكلاسيكي (v2)']])+
    R_('hair.part','Part position','موضع الفرق',-0.8,0.8,0.01)+R_('hair.vol','Volume','الحجم',0,0.4,0.005)+R_('hair.volF','Front lift (quiff)','رفعة الغرّة',0,0.6,0.01)+R_('hair.layer','Layering','الطبقات',0,1.5,0.02)+R_('hair.clump','Clumping','تجمّع الخصل',0,1,0.02)+R_('hair.oneLen','One-length cut','قصّة بطول موحّد',0,1,0.02)+R_('hair.lenVar','Length variation','تفاوت الأطوال',0,1,0.02)+R_('hair.drape','Drape onto nape','الانسدال على الرقبة',0,1.5,0.02)+Sel_('hair.bangs','Bangs','الغرّة',[['none','None','بدون'],['blunt','Blunt','مستقيمة'],['curtain','Curtain','ستارة'],['side','Side-swept','جانبية']])+R_('hair.bangLen','Bangs length','طول الغرّة',0.2,1.2,0.01)+Sel_('hair.ear','Hair at the ears','الشعر عند الأذن',[['behind','Tucked behind the ear','خلف الأذن'],['over','Covering the ear','يغطي الأذن']]),true)+
-  Sec_('Styling comb (real time)','مشط التسريح (لحظي)','<p class="desc">'+sp('Drag over the hair to comb it. The groom stays put and keeps reacting to physics.','اسحب فوق الشعر لتسريحه. يبقى التسريح ثابتاً ويتفاعل مع الفيزياء.')+'</p>'+Btn_('combGo','Pick up the comb','أمسك المشط','p')+'<div style="height:8px"></div>'+Sel_('comb.t','Tool','الأداة',[['comb','Comb (direction)','تسريح (اتجاه)'],['lift','Lift (volume)','رفع (حجم)'],['smooth','Smooth','تنعيم'],['relax','Relax (undo combing)','إرخاء (إلغاء التسريح)']])+R_('comb.r','Comb size','حجم المشط',0.15,1.2,0.01)+R_('comb.str','Strength','القوة',0.1,2,0.05)+Btn_('combReset','Reset combing','إعادة ضبط التسريح'),true)+
+  Sec_('Ear detection & hair distribution','كشف الأذن وتوزيع الشعر','<p class="desc">'+sp('The ear is found on the mesh automatically and the hairline is cut around it. Yellow = detected ear, blue = clean outline, green = taper zone, red = sideburn and back hairline.','تُكتشف الأذن من المجسّم تلقائياً ويُقص خط الشعر حولها. الأصفر = الأذن المكتشفة، الأزرق = حدّ القص، الأخضر = منطقة التدريج، الأحمر = السالف وخط الشعر الخلفي.')+'</p><div class="two">'+Btn_('earDet','Detect ears','اكتشاف الأذن','p')+Btn_('earRst','Defaults','الافتراضي')+'</div>'+K_('ear.guides','Show ear guides','إظهار أدلة الأذن')+'<p class="note" id="earInfo"></p>'+R_('ear.margin','Clearance around the ear','المسافة حول الأذن',0,0.25,0.005)+R_('ear.taper','Taper width','عرض التدريج',0.1,1.6,0.02)+R_('ear.sb','Sideburn bottom (height)','نهاية السالف (الارتفاع)',1.9,2.9,0.01)+R_('ear.back','Back hairline: slope starts at','خط الشعر الخلفي: بداية الميل',1.8,2.8,0.01)+R_('ear.slope','Back hairline slope','ميل خط الشعر الخلفي',0,2,0.05),true)+
+ Sec_('Styling comb (real time)','مشط التسريح (لحظي)','<p class="desc">'+sp('Drag over the hair to comb it. The groom stays put and keeps reacting to physics.','اسحب فوق الشعر لتسريحه. يبقى التسريح ثابتاً ويتفاعل مع الفيزياء.')+'</p>'+Btn_('combGo','Pick up the comb','أمسك المشط','p')+'<div style="height:8px"></div>'+Sel_('comb.t','Tool','الأداة',[['comb','Comb (direction)','تسريح (اتجاه)'],['lift','Lift (volume)','رفع (حجم)'],['smooth','Smooth','تنعيم'],['relax','Relax (undo combing)','إرخاء (إلغاء التسريح)']])+R_('comb.r','Comb size','حجم المشط',0.15,1.2,0.01)+R_('comb.str','Strength','القوة',0.1,2,0.05)+Btn_('combReset','Reset combing','إعادة ضبط التسريح'),true)+
   Sec_('Shape','الشكل',SL.map(function(s){return R_('hair.'+s[0],s[1],s[2],s[3],s[4],s[5])}).join(''))+
   Sec_('Physics (real time)','الفيزياء (لحظية)',K_('phys.on','Simulate hair','محاكاة الشعر')+R_('phys.k','Stiffness','الصلابة',40,400,5)+R_('phys.damp','Damping','التخميد',0.05,1,0.05)+R_('phys.grav','Gravity','الجاذبية',0,2,0.05)+R_('phys.wind','Wind','الرياح',0,1.5,0.05,0)+'<div class="two">'+Btn_('shk','Shake head','هزّ الرأس','p')+Btn_('stl','Settle','تهدئة')+'</div>')+
   Sec_('Material','المادة',R_('hmat.shine','Shine','اللمعان',0,2,0.05)+R_('hmat.gloss','Gloss (highlight tightness)','حدة البريق',0.4,2,0.05)+R_('hmat.trans','Backlight translucency','الشفافية مع الإضاءة الخلفية',0,2,0.05)+R_('hmat.soft','Strand softness (thin tips)','نعومة الخصلات (أطراف رفيعة)',0,1,0.02)+R_('hmat.shadow','Self-shadowing depth','عمق الظل الذاتي',0,2,0.05))+
@@ -1162,6 +1195,7 @@ function onCtl(p){var a=p.split('.'),top=a[0],k=a[1];
  if(top==='skin'){if(k==='mel'||k==='red')S.skin.custom='';updSkinU();if(k==='age'){defDirty=true;updHairCols()}paintDirty=true;drawPalette();return}
  if(top==='makeup'){paintDirty=true;return}
  if(top==='eyes'){updEyeMats();return}
+ if(top==='ear'){updEar();return}
  if(top==='hair'&&k==='ear'){LY.scalp.U.uEar.value=cur.ear==='over'?1:0;return}
  if(top==='hair'){if(k==='h'||k==='t'){updHairCols();paintDirty=true;return}if(k==='stub'||k==='nape'||k==='front')paintDirty=true;sched('scalp');return}
  if(top==='hmat'){updHairMat();updHairCols();return}
@@ -1207,6 +1241,8 @@ function bindUI(){var root=document.body;
  $('shk').onclick=function(){PH.shake=1.2;PH.asleep=false};
  $('stl').onclick=function(){if(PH.o){PH.o.set(PH.g);PH.v.fill(0);phWrite(PH.g)}PH.shake=0;PH.asleep=true};
  $('combGo').onclick=function(){setMode('comb')};
+ $('earDet').onclick=function(){detectEar();S.ear.guides=true;updEar();syncUI();toast(tx('Ears detected','تم اكتشاف الأذن'));commit()};
+ $('earRst').onclick=function(){Object.assign(S.ear,{margin:0.08,sb:2.4,back:2.35,taper:0.85,slope:0.9});updEar();syncUI();commit()};
  $('combReset').onclick=function(){if(!PH.g)return;PH.g.fill(0);PH.gAny=false;PH.gDirty=true;PH.asleep=false};
  $('cmBtn').onclick=function(){toggleCM(!cm)};$('cmX').onclick=function(){toggleCM(false)};
  $('opts').addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;if(b.dataset.s)LD[b.dataset.s]=SM[b.dataset.s][b.dataset.k];else if(b.dataset.t)LD[b.dataset.t]=!LD[b.dataset.t];else if(b.dataset.g){$('gd').selectedIndex=+b.dataset.g;guard()}applyLD()});
@@ -1282,7 +1318,7 @@ function frame(){var dt=Math.min(clock.getDelta(),0.05),tm=clock.elapsedTime;
   if(cutting||auto){clip.position.addScaledVector(tn,Math.sin(tm*140)*0.006*sc*LD.mt.vib);tilt.rotation.z=Math.sin(tm*95)*0.012*LD.mt.vib}else tilt.rotation.z=0}
  if(G.on){G.t-=dt;G.last+=dt;if(G.last>0.45){G.last=0;if(G.dirty){G.dirty=false;G.acc=accuracy();drawMini()}}hud();if(G.t<=0)gEnd()}
  if(defDirty)applyDeform();if(paintDirty)paintSkin();
- updEyes(dt);stepP(dt);for(var n in LY){var L=LY[n];if(L.dirty&&L.obj){L.obj.geometry.attributes.aMisc.needsUpdate=true;L.dirty=false;shortDirty=true}}if(shortDirty&&tm-shortT>0.1){shortT=tm;updShort()}physUpdate(dt,tm);updHairLight();if(key.shadow.map){LU.uShMap.value=key.shadow.map.texture;LU.uShTx.value=1/key.shadow.mapSize.x;LU.uShRng.value=key.shadow.camera.far-key.shadow.camera.near;LU.uShOn.value=S.hmat.shadow>0?1:0}
+ updEyes(dt);stepP(dt);for(var n in LY){var L=LY[n];if(L.dirty&&L.obj){L.obj.geometry.attributes.aMisc.needsUpdate=true;L.dirty=false;shortDirty=true}}if(shortDirty&&tm-shortT>0.1){shortT=tm;updShort()}physUpdate(dt,tm);updHairLight();if(earG.visible)earG.children.forEach(function(c){c.visible=c.userData.sx*cam.position.x>0});if(key.shadow.map){LU.uShMap.value=key.shadow.map.texture;LU.uShTx.value=1/key.shadow.mapSize.x;LU.uShRng.value=key.shadow.camera.far-key.shadow.camera.near;LU.uShOn.value=S.hmat.shadow>0?1:0}
  ren.render(scene,cam);
  fpsA+=dt;fpsN++;if(fpsA>0.5){$('sbF').textContent=Math.round(fpsN/fpsA)+' fps';$('phn').textContent=PH.G?(PH.G+tx(' guides · sim ',' دليل · محاكاة ')+PH.ms.toFixed(2)+' ms'+(PH.asleep?tx(' · asleep',' · ساكن'):'')):'';fpsA=fpsN=0}}
 })();

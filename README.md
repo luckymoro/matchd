@@ -13,6 +13,7 @@ A browser-based 3D character creator (head, face, skin, eyes, grooms, barber too
   - *Realistic rendering*: Marschner-style shading (white R glint, tinted TRT, backlit TT), per-strand colour variation and tapered tips. The key light casts soft shadows from hair and face onto the skin, and the hair self-shadows through its own thickness (deep-opacity style). Material › *Strand softness* and *Self-shadowing depth* tune it.
   - *Styling comb (real time)*: the **Comb** header button (or Hair › Styling comb) combs, lifts, smooths or relaxes the hair under the cursor. The groom becomes the physics rest pose, so it holds while still reacting to motion and wind, and it is baked into GLB/OBJ exports.
   - *Ears*: Flow & volume › *Hair at the ears* tucks the hair behind the ear or drapes it over it, instead of letting the ear poke through.
+  - *Ear detection & hair distribution*: the ear is detected on the (sculpted) mesh and the hairline is cut around it like a barber's outline. *Detect ears* shows guides (yellow ear, blue outline, green taper, red sideburn/back line). Sliders set the clearance, taper width, sideburn height and back-hairline slope.
 - **Facial hair** – stubble, mustache, goatee, boxed, full and long beards as strand grooms.
 - **Barber** – clipper with guards, blades, motors and auto fade; cuts scalp hair and beards; timed scoring challenge.
 - **Expressions** – 9 expression controls, emotion presets, live Idle / Talking / Emotion-tour previews.
