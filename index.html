@@ -244,7 +244,7 @@ Object.assign(PR,{
  wPixie:{flow:'side',part:0.3,count:130,len:0.32,fadeBand:0.5,nape:2.15,front:3.85,lift:0.4,curl:0.2,stub:0.3,seed:107,h:'#6a4a2a',t:'#c8a070',vol:0.06,volF:0.1,layer:0.4,wave:0.02,lock:0.35,clump:0.5,bangs:'side',bangLen:0.55}});
 var PRW=[['wLong','Long straight · center part','طويل ناعم · فرق في المنتصف'],['wWavy','Long waves · side part','طويل مموّج · فرق جانبي'],['wBangs','Long with blunt bangs','طويل مع غرّة مستقيمة'],['wLob','Lob with curtain bangs','لوب مع غرّة ستارة'],['wBob','Classic bob','بوب كلاسيكي'],['wCurly','Long curls','تجاعيد طويلة'],['wCurlyHi','Long curls with highlights','تجاعيد طويلة مع خصل فاتحة'],['wPixie','Pixie cut','قصّة بيكسي']];
 var PRN=[['viking','Viking: slick back + top knot, long back','فايكنغ: مسرّح للخلف مع كعكة وشعر طويل'],['curlyTaper','Curly fringe + low taper (photo)','مجعّد مع غرّة وتدريج منخفض (الصورة)'],['hsf','Textured crop + high skin fade','كروب مموّج مع تدريج عالٍ حتى الجلد'],['beck','Beckham textured quiff','كويف بيكهام المموّج'],['beck16','Beckham long top, short sides','بيكهام: أعلى طويل وجوانب قصيرة'],['mi2','Mission: Impossible 2 (to the nape)','مهمة مستحيلة 2 (حتى الرقبة)'],['titanic','Titanic curtains (DiCaprio ’97)','ستارة تايتانك (دي كابريو)'],['topgun','Top Gun side part (Tom Cruise)','فرق جانبي توب غن (توم كروز)'],['kroos','Slick back + high fade (Kroos)','للخلف مع تدريج عالٍ (كروس)'],['quiff','Textured quiff + low fade','كويف مموّج مع تدريج منخفض'],['pomp','Pompadour','بومبادور'],['flowback','Flow back','انسياب للخلف'],['base','Base shape (uncut)','الشكل الأساسي (غير مقصوص)'],['fade','Short fade (photo look)','تدريج قصير'],['buzz','Buzz cut','حلاقة قصيرة جداً'],['crop','Textured crop','قصة كروب'],['long','Long','طويل'],['ref','Dark wavy swept-up (photo)','مموّج داكن مرفوع'],['curly','Natural curly','مجعّد طبيعي'],['wavy','Wavy','مموّج'],['afro','Afro / coily','أفرو'],['dicap','Slick back (DiCaprio)','مسرّح للخلف'],['cruise','Side-swept (Tom Cruise)','مسرّح جانبي'],['undercut','Undercut','أندركت'],['mohawk','Mohawk','موهوك']];
-function setP(k){var fp=PR[k].fadeP;S.fade.on=!!fp;if(fp)Object.assign(S.fade,fp);S.hair=cur=Object.assign({preset:k,oneLen:0,lenVar:0.6,drape:1,bangs:'none',bangLen:0.6,coil:0,freq:0,sweep:0,wave:0.015,lock:0.18,bend:0.75,mohawk:0,flow:'crown',part:0.45,ear:'behind',frizz:0,stray:undefined,hl:0,hlc:'#d9a560',csz:0.07,vol:0.05,volF:0,layer:0.5,clump:0.4},JSON.parse(JSON.stringify(PR[k])));var tq=cur.tie;delete cur.tie;Object.assign(S.tie,{mode:'none',sel:'top',u:[0,0.62,-0.78],tight:0.75,spread:0.4,bunR:0.16},tq||{})}
+function setP(k){var fp=PR[k].fadeP;S.fade.on=!!fp;if(fp)Object.assign(S.fade,fp);S.hair=cur=Object.assign({preset:k,oneLen:0.85,lenVar:0.6,drape:1,bangs:'none',bangLen:0.6,coil:0,freq:0,sweep:0,wave:0.015,lock:0.18,bend:0.75,mohawk:0,flow:'crown',part:0.45,ear:'behind',frizz:0,stray:undefined,hl:0,hlc:'#d9a560',csz:0.07,vol:0.05,volF:0,layer:0.5,clump:0.4},JSON.parse(JSON.stringify(PR[k])));var tq=cur.tie;delete cur.tie;Object.assign(S.tie,{mode:'none',sel:'top',u:[0,0.62,-0.78],tight:0.75,spread:0.4,bunR:0.16},tq||{})}
 
 /* ================= renderer / scene ================= */
 var cv=$('c'),st=$('stage'),ren=new T.WebGLRenderer({canvas:cv,antialias:true,alpha:true,preserveDrawingBuffer:true});
@@ -861,6 +861,14 @@ function updTie(k){var Tq=S.tie,U=LY.scalp.U,on=Tq.mode!=='none';
  tieBand.visible=on&&S.view.hair;tieBand.material.color.set(Tq.band);tieBand.position.copy(tp.p).addScaledVector(tp.n,Tq.mode==='bun'?0.06:0.08);tieBand.quaternion.setFromUnitVectors(new T.Vector3(0,0,1),tp.n);
  TIE.o.set(0,0,0);TIE.v.set(0,0,0);U.uTieSw.value.set(0,0,0)}
 function hairLive(c){var U=LY.scalp.U;U.uFrizz.value=c.frizz||0;U.uStray.value=c.stray===undefined?((c.flow||'legacy')!=='legacy'?0.015:0.05):c.stray;U.uHl.value=c.hl||0;U.uHlc.value.set(c.hlc||'#d9a560')}
+// Equal-length strands from the crown spend most of their length crossing the scalp, so they end far higher
+// than strands rooted on the sides: the hair reads as a short cap over a second, longer curtain. Long styles
+// lengthen each strand (solved on the CPU flow mirror) so every tip reaches one hemline; oneLen blends it in.
+function oneLenFix(H,U,k,Ln,c,R){var om=(c.oneLen||0)*sm((c.len-0.7)/0.4);if(om<=0)return Ln;
+ var hem=2.75-c.len*0.95+(R()-0.5)*(c.lenVar==null?0.6:c.lenVar)*0.3,L2=Ln,P3=[0,0,0];
+ flowJS(H,U,k,Ln,P3);if(P3[2]>0.45)return Ln;
+ for(var it=0;it<5;it++){var e=P3[1]-hem;if(Math.abs(e)<0.01)break;L2=clamp(L2+e,Ln*0.4,Ln*3);flowJS(H,U,k,L2,P3)}
+ return Ln+(L2-Ln)*om}
 function buildScalp(){var L=LY.scalp;disposeL(L);grmAlloc();var c=cur,R=rng(c.seed),n=Math.round(c.count*1000),H=L.H=newH(n),k=0,tries=0,U=L.U;
  HU.sag0=0.35/(0.2+c.len)*(1-c.lift*0.6);U.uSag.value=HU.sag0*PH.grav*1.8;U.uEar.value=c.ear==='over'?1:0;U.uCurl.value=c.curl;U.uCoil.value=c.coil||0;U.uFreq.value=c.freq||0;U.uWaveA.value=c.wave||0;U.uLock.value=c.lock||0;U.uBend.value=c.bend;
  var flow=c.flow||'legacy',FL=flow!=='legacy';U.uFlow.value=FL?1:0;U.uVol.value=c.vol||0;U.uVolF.value=c.volF||0;U.uLayer.value=c.layer===undefined?0.5:c.layer;U.uGravF.value=PH.grav;U.uClumpA.value=(c.clump===undefined?0.4:c.clump)*0.9;U.uDrape.value=c.drape===undefined?1:c.drape;hairLive(c);
@@ -868,13 +876,13 @@ function buildScalp(){var L=LY.scalp;disposeL(L);grmAlloc();var c=cur,R=rng(c.se
  while(k<n&&tries<n*4){tries++;var s=sample(SAMP_ALL,R),hw=hairW(s.x,s.y,s.z,edAt(s)),yl=HLY;if(R()>=hw)continue;
   var f=1-sm((s.y-yl)/c.fadeBand);if(c.mohawk>0)f=Math.max(f,sm((Math.abs(s.x)-c.mohawk)/0.12));if(R()<f*0.6)continue;
   tg.copy(s.p).sub(crown);tg.addScaledVector(s.n,-tg.dot(s.n));if(tg.lengthSq()<1e-6)tg.set(0,-1,0);tg.normalize();
-  var lv=c.lenVar===undefined?0.6:c.lenVar,Ln=((c.len+(c.oneLen||0)*Math.max(0,s.y-2.6)*1.2)*(1-f)+0.025*f)*(1-lv/2+R()*lv);
+  var lv=c.lenVar===undefined?0.6:c.lenVar,Ln=((c.len+(FL?0:(c.oneLen||0))*Math.max(0,s.y-2.6)*1.2)*(1-f)+0.025*f)*(1-lv/2+R()*lv);
   var bz=FL&&c.bangs&&c.bangs!=='none'&&s.z>0.3&&s.y>3.45&&Math.abs(s.x)<0.8;
   if(bz){var bx=s.x-(c.part||0);if(c.bangs==='blunt')dir.set(s.x*0.25,-0.2,1);else if(c.bangs==='side')dir.set(1,-0.35,0.8);else dir.set(bx<0?-1:1,-0.8,0.6);dir.addScaledVector(s.n,-dir.dot(s.n)).normalize();Ln=(c.bangLen||0.6)*(0.88+R()*0.24)}
   else if(FL){flowDir(c,s,tg,dir);var nq=vnz3(s.x,s.y,s.z,c.seed);dir.x+=nq[0]*c.curl*0.8+(R()-.5)*c.curl*0.08;dir.y+=nq[1]*c.curl*0.8+(R()-.5)*c.curl*0.08;dir.z+=nq[2]*c.curl*0.8+(R()-.5)*c.curl*0.08;dir.addScaledVector(s.n,-dir.dot(s.n)).normalize()}
   else{dir.copy(s.n).multiplyScalar(c.lift).addScaledVector(tg,1-c.lift);var wf=c.sweep?sm((s.z+0.6)/1.2):0;dir.y+=0.25*c.sweep*wf;dir.z-=c.sweep*wf;
   dir.x+=(R()-.5)*c.curl;dir.y+=(R()-.5)*c.curl;dir.z+=(R()-.5)*c.curl;dir.normalize()}
-  addStrand(H,k,s,dir,Ln,R,L.off);H.LB[k]=Ln;H.DB[k*3]=dir.x;H.DB[k*3+1]=dir.y;H.DB[k*3+2]=dir.z;H.DR[k]=((Math.imul(k+7,0x9E3779B1)>>>0)%100003)/100003;
+  addStrand(H,k,s,dir,Ln,R,L.off);if(FL&&!bz){Ln=oneLenFix(H,U,k,Ln,c,R);H.L0[k]=H.MISC[k*4]=Ln}H.LB[k]=Ln;H.DB[k*3]=dir.x;H.DB[k*3+1]=dir.y;H.DB[k*3+2]=dir.z;H.DR[k]=((Math.imul(k+7,0x9E3779B1)>>>0)%100003)/100003;
   var ck=((Math.floor(s.x/CS)+64)<<14)|((Math.floor(s.y/CS)+64)<<7)|(Math.floor(s.z/CS)+64),gi=gm.get(ck);
   if(gi===undefined){gi=GK.length;gm.set(ck,gi);GK.push(ck);GX.push(0);GY.push(0);GZ.push(0);GL.push(0);GN.push(0)}
   GX[gi]+=s.p.x;GY[gi]+=s.p.y;GZ[gi]+=s.p.z;GL[gi]+=Ln;GN[gi]++;H.MISC[k*4+1]=gi;k++;
