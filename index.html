@@ -131,7 +131,7 @@ var S={
  comb:{t:'comb',r:0.45,str:1,teeth:'med',tex:0,dmode:'follow',ang:0},
  groom:{b:'dir',r:0.3,str:0.5,sym:true,inv:false,c:'#d9b07a',viz:true},
  tie:{mode:'none',sel:'top',u:[0,0.62,-0.78],tight:0.75,spread:0.4,bunR:0.16,band:'#151515'},
- barb:{tool:'clipper',sym:false,lever:0,flick:0,slen:0.6,thin:0.35},
+ barb:{tool:'clipper',sym:false,lever:0,flick:0,slen:0.6,thin:0.35,lw:0.035,straight:false},
  ear:{margin:0.08,sb:2.4,back:2.35,taper:0.85,slope:0.9,guides:false},
  light:{rig:'studio',rot:0,int:1,expo:1,tone:'linear',bg:'rig',bgc:'#202226'},
  view:{mode:'lit',focal:42,hair:true,turn:false,guides:false}
@@ -228,6 +228,7 @@ mohawk:{count:110,len:0.9,fadeBand:0.25,nape:2.1,front:3.85,lift:0.95,curl:0.25,
  pomp:{flow:'up',count:130,len:0.95,fadeBand:0.6,nape:2.15,front:3.85,lift:0.4,curl:0.06,stub:0.6,seed:44,h:'#1a120d',t:'#3a2a1e',vol:0.14,volF:0.42,layer:0.6,wave:0.015,lock:0.2,clump:0.5},
  flowback:{flow:'back',count:130,len:1.0,fadeBand:0.35,nape:1.95,front:3.9,lift:0.35,curl:0.2,stub:0.3,seed:58,h:'#140e0a',t:'#30241b',vol:0.12,volF:0.24,layer:0.6,wave:0.035,lock:0.35,clump:0.55}})})();
 Object.assign(PR,{
+ curlyTaper:{flow:'forward',count:140,len:0.72,fadeBand:0.2,nape:2.05,front:3.85,lift:0.45,curl:0.22,stub:0.6,seed:303,h:'#0e0a08',t:'#2a1e16',coil:0.065,freq:2.6,vol:0.12,volF:0.04,layer:0.4,wave:0,lock:0.42,clump:0.75,lenVar:0.5,bend:0.5,frizz:0.08,stray:0.025,csz:0.1,fadeP:{style:'taper',lo:'skin',hi:'4',start:2.08,top:3.45,soft:0.9}},
  hsf:{flow:'forward',count:120,len:0.52,fadeBand:0.2,nape:2.15,front:3.85,lift:0.5,curl:0.4,stub:0.8,seed:12,h:'#2b1d14',t:'#57402d',vol:0.08,volF:0.12,layer:0.4,wave:0.025,lock:0.4,clump:0.6,fadeP:{style:'fade',lo:'skin',hi:'1.5',start:2.2,top:3.7,soft:0.75}},
  beck:{flow:'up',count:125,len:0.62,fadeBand:0.2,nape:2.15,front:3.85,lift:0.5,curl:0.35,stub:0.6,seed:24,h:'#4a3622',t:'#9c7b52',vol:0.1,volF:0.24,layer:0.5,wave:0.02,lock:0.42,clump:0.6,fadeP:{style:'taper',lo:'1',hi:'3',start:2.15,top:3.25,soft:0.9}},
  beck16:{flow:'back',count:130,len:1.2,fadeBand:0.2,nape:2.15,front:3.85,lift:0.4,curl:0.3,stub:0.5,seed:66,h:'#3a2a1c',t:'#a08060',vol:0.09,volF:0.3,layer:0.65,wave:0.035,lock:0.45,clump:0.6,fadeP:{style:'fade',lo:'1',hi:'2',start:2.2,top:3.45,soft:0.55}},
@@ -242,7 +243,7 @@ Object.assign(PR,{
  wCurlyHi:{ear:'over',flow:'center',part:0.15,count:95,len:1.55,fadeBand:0.2,nape:1.75,front:3.9,lift:0.4,curl:0.25,stub:0,seed:211,h:'#3a2414',t:'#7a5230',coil:0.07,freq:2.4,vol:0.16,volF:0.05,layer:0.6,wave:0,lock:0.3,clump:0.6,oneLen:0.7,lenVar:0.3,drape:0.8,bend:0.4,hl:0.42,hlc:'#d6a35e',frizz:0.06,stray:0.012,csz:0.09},
  wPixie:{flow:'side',part:0.3,count:130,len:0.32,fadeBand:0.5,nape:2.15,front:3.85,lift:0.4,curl:0.2,stub:0.3,seed:107,h:'#6a4a2a',t:'#c8a070',vol:0.06,volF:0.1,layer:0.4,wave:0.02,lock:0.35,clump:0.5,bangs:'side',bangLen:0.55}});
 var PRW=[['wLong','Long straight · center part','طويل ناعم · فرق في المنتصف'],['wWavy','Long waves · side part','طويل مموّج · فرق جانبي'],['wBangs','Long with blunt bangs','طويل مع غرّة مستقيمة'],['wLob','Lob with curtain bangs','لوب مع غرّة ستارة'],['wBob','Classic bob','بوب كلاسيكي'],['wCurly','Long curls','تجاعيد طويلة'],['wCurlyHi','Long curls with highlights','تجاعيد طويلة مع خصل فاتحة'],['wPixie','Pixie cut','قصّة بيكسي']];
-var PRN=[['viking','Viking: slick back + top knot, long back','فايكنغ: مسرّح للخلف مع كعكة وشعر طويل'],['hsf','Textured crop + high skin fade','كروب مموّج مع تدريج عالٍ حتى الجلد'],['beck','Beckham textured quiff','كويف بيكهام المموّج'],['beck16','Beckham long top, short sides','بيكهام: أعلى طويل وجوانب قصيرة'],['mi2','Mission: Impossible 2 (to the nape)','مهمة مستحيلة 2 (حتى الرقبة)'],['titanic','Titanic curtains (DiCaprio ’97)','ستارة تايتانك (دي كابريو)'],['topgun','Top Gun side part (Tom Cruise)','فرق جانبي توب غن (توم كروز)'],['kroos','Slick back + high fade (Kroos)','للخلف مع تدريج عالٍ (كروس)'],['quiff','Textured quiff + low fade','كويف مموّج مع تدريج منخفض'],['pomp','Pompadour','بومبادور'],['flowback','Flow back','انسياب للخلف'],['base','Base shape (uncut)','الشكل الأساسي (غير مقصوص)'],['fade','Short fade (photo look)','تدريج قصير'],['buzz','Buzz cut','حلاقة قصيرة جداً'],['crop','Textured crop','قصة كروب'],['long','Long','طويل'],['ref','Dark wavy swept-up (photo)','مموّج داكن مرفوع'],['curly','Natural curly','مجعّد طبيعي'],['wavy','Wavy','مموّج'],['afro','Afro / coily','أفرو'],['dicap','Slick back (DiCaprio)','مسرّح للخلف'],['cruise','Side-swept (Tom Cruise)','مسرّح جانبي'],['undercut','Undercut','أندركت'],['mohawk','Mohawk','موهوك']];
+var PRN=[['viking','Viking: slick back + top knot, long back','فايكنغ: مسرّح للخلف مع كعكة وشعر طويل'],['curlyTaper','Curly fringe + low taper (photo)','مجعّد مع غرّة وتدريج منخفض (الصورة)'],['hsf','Textured crop + high skin fade','كروب مموّج مع تدريج عالٍ حتى الجلد'],['beck','Beckham textured quiff','كويف بيكهام المموّج'],['beck16','Beckham long top, short sides','بيكهام: أعلى طويل وجوانب قصيرة'],['mi2','Mission: Impossible 2 (to the nape)','مهمة مستحيلة 2 (حتى الرقبة)'],['titanic','Titanic curtains (DiCaprio ’97)','ستارة تايتانك (دي كابريو)'],['topgun','Top Gun side part (Tom Cruise)','فرق جانبي توب غن (توم كروز)'],['kroos','Slick back + high fade (Kroos)','للخلف مع تدريج عالٍ (كروس)'],['quiff','Textured quiff + low fade','كويف مموّج مع تدريج منخفض'],['pomp','Pompadour','بومبادور'],['flowback','Flow back','انسياب للخلف'],['base','Base shape (uncut)','الشكل الأساسي (غير مقصوص)'],['fade','Short fade (photo look)','تدريج قصير'],['buzz','Buzz cut','حلاقة قصيرة جداً'],['crop','Textured crop','قصة كروب'],['long','Long','طويل'],['ref','Dark wavy swept-up (photo)','مموّج داكن مرفوع'],['curly','Natural curly','مجعّد طبيعي'],['wavy','Wavy','مموّج'],['afro','Afro / coily','أفرو'],['dicap','Slick back (DiCaprio)','مسرّح للخلف'],['cruise','Side-swept (Tom Cruise)','مسرّح جانبي'],['undercut','Undercut','أندركت'],['mohawk','Mohawk','موهوك']];
 function setP(k){var fp=PR[k].fadeP;S.fade.on=!!fp;if(fp)Object.assign(S.fade,fp);S.hair=cur=Object.assign({preset:k,oneLen:0,lenVar:0.6,drape:1,bangs:'none',bangLen:0.6,coil:0,freq:0,sweep:0,wave:0.015,lock:0.18,bend:0.75,mohawk:0,flow:'crown',part:0.45,ear:'behind',frizz:0,stray:undefined,hl:0,hlc:'#d9a560',csz:0.07,vol:0.05,volF:0,layer:0.5,clump:0.4},JSON.parse(JSON.stringify(PR[k])));var tq=cur.tie;delete cur.tie;Object.assign(S.tie,{mode:'none',sel:'top',u:[0,0.62,-0.78],tight:0.75,spread:0.4,bunR:0.16},tq||{})}
 
 /* ================= renderer / scene ================= */
@@ -468,12 +469,10 @@ vec3 earFix(vec3 p,float t){
  if(ax<uEarC.x-0.25)return p;
  float w=smoothstep(0.01,0.12,t)*smoothstep(1.0,0.5,e2);
  if(uEar<0.5){
-  // long hair tucked behind the ear: strands reaching ear level sweep behind it (temple strands in front)
+  // long hair is not tucked: it drapes over the ear (sweeping it behind stacked strands into a flat wall)
   float lw=smoothstep(0.55,0.95,aMisc.x);
-  float dze=p.z-uEarC.z;
-  if(lw>0.0&&ax>uEarC.x-0.3&&abs(dze)<uEarR.y*1.35&&p.y<uEarC.y+uEarR.x*1.1){bool fr=aRoot.z>uEarC.z+uEarR.y&&aRoot.y<uEarC.y+uEarR.x;float sp=fract(aVar*23.7);
-   float zt=fr?uEarC.z+uEarR.y*(1.3+0.5*sp):uEarC.z-uEarR.y*(1.3+0.9*sp);
-   p.z=mix(p.z,zt,lw*smoothstep(0.01,0.12,t)*smoothstep(uEarC.y+uEarR.x*1.1,uEarC.y+uEarR.x*0.5,p.y)*smoothstep(uEarR.y*1.35,uEarR.y*0.9,abs(dze)));}
+  if(lw>0.0){vec2 qc=vec2((p.y-uEarC.y)/(p.y<uEarC.y?uEarR.x*1.7:uEarR.x*1.05),(p.z-uEarC.z)/(uEarR.y*1.15));float f2=dot(qc,qc);
+   if(f2<1.0&&ax<1.75){float tgt=uEarC.x+0.3;p.x=sx*mix(ax,max(ax,tgt),lw*smoothstep(1.0,0.0,f2)*smoothstep(0.01,0.12,t));}}
   // taper: approaching the ear outline the hair is pressed onto the scalp so it thins out instead of ending in a wall
   float et=length((vec2(p.y,p.z)-uEarC.yz)/uEarR);
   float wt=smoothstep(1.05+uEarB.z,1.05,et)*smoothstep(0.01,0.1,t)*step(uEarC.x-0.35,ax);
@@ -516,7 +515,7 @@ float gTied;
 float tieD(){vec3 u0=normalize((aRoot-uHC)/uHR),u1=normalize((uTie.xyz-uHC)/uHR);float A=acos(clamp(dot(u0,u1),-1.0,1.0));vec3 um=u0+u1;um=length(um)>1e-3?normalize(um):u1;return A*length(uHR*um)*shellR(um);}
 vec3 tieP(float s,float L){
  vec3 u0=normalize((aRoot-uHC)/uHR),u1=normalize((uTie.xyz-uHC)/uHR);
- float A=acos(clamp(dot(u0,u1),-1.0,1.0)),D=max(tieD(),1e-3);
+ float A=acos(clamp(dot(u0,u1),-1.0,1.0)),D=min(max(tieD(),1e-3),L*0.75);
  vec3 N=uTieN,rd=aRoot-uTie.xyz;rd-=N*dot(rd,N);float rl=length(rd);
  vec3 b1=normalize(cross(N,abs(N.y)<0.9?vec3(0.0,1.0,0.0):vec3(1.0,0.0,0.0))),b2=cross(N,b1);
  vec3 e=(rl>1e-4?rd/rl:b1)*0.055*(0.35+0.65*fract(aVar*3.71));
@@ -576,7 +575,7 @@ void main(){
  // guides view: only ~0.6% of the strands, drawn as coloured guide curves
  if(uGuide>0.5&&fract(aVar*61.3)>0.006){gl_Position=vec4(2.0,2.0,2.0,1.0);vT=vec3(0.0,1.0,0.0);vN=vT;vV=vT;vP=0.0;vVar=1.0;vS=0.0;vTint=vec4(0.0);vTd=0.0;vL=0.0;vHl=1.0;return;}
  gTied=0.0;
- if(uTie.w>0.5&&fract(aVar*17.13)<aGrm.y&&aMisc.x>tieD()*0.9)gTied=1.0;
+ if(uTie.w>0.5&&fract(aVar*17.13)<aGrm.y&&aMisc.x>0.25)gTied=1.0;
  float tc=aT;
  if(gTied<0.5&&uEar>-0.5&&uEar<0.5&&abs(aRoot.x)>uEarC.x-0.35){float er=length((vec2(aRoot.y,aRoot.z)-uEarC.yz)/uEarR);tc*=mix(mix(0.45,1.0,smoothstep(1.05,1.05+uEarB.z*0.55,er)),1.0,smoothstep(0.55,0.95,aMisc.x));}
  vec3 p0=hp(tc);
@@ -732,7 +731,7 @@ function finalize(L,k,segs){var H=L.H;H.n=k;H.segs=segs;var bg=new T.InstancedBu
 function mkStub(L,list){var n=list.length/4;if(!n)return;var sg=new T.BufferGeometry();sg.setAttribute('position',new T.BufferAttribute(new Float32Array(n*3),3).setUsage(T.DynamicDrawUsage));sg.setAttribute('color',new T.BufferAttribute(new Float32Array(n*3),3));
  L.st={n:n,d:Float32Array.from(list),obj:new T.Points(sg,new T.PointsMaterial({size:1.6,sizeAttenuation:false,vertexColors:true}))};L.st.obj.frustumCulled=false;L.st.obj.visible=S.view.hair;scene.add(L.st.obj);rebindStub(L)}
 function updShort(){shortDirty=false;var cnt=SHC,sl=SHL,i,q;cnt.fill(0);sl.fill(0);
- [LY.scalp,LY.beard].forEach(function(L){var H=L.H;for(var i=0;i<H.n;i++){if(H.DH[i])continue;var t=H.TI[i]*3,u=H.BU[i],v=H.BV[i],w=1-u-v,len=Math.min(H.L0[i],H.CAP[i]),ia=IX[t],ib=IX[t+1],ic=IX[t+2];cnt[ia]+=w;cnt[ib]+=u;cnt[ic]+=v;sl[ia]+=w*len;sl[ib]+=u*len;sl[ic]+=v*len}});
+ [LY.scalp,LY.beard].forEach(function(L){var H=L.H;for(var i=0;i<H.n;i++){if(H.DH[i]||H.CAP[i]<0.002)continue;var t=H.TI[i]*3,u=H.BU[i],v=H.BV[i],w=1-u-v,len=Math.min(H.L0[i],H.CAP[i]),ia=IX[t],ib=IX[t+1],ic=IX[t+2];cnt[ia]+=w;cnt[ib]+=u;cnt[ic]+=v;sl[ia]+=w*len;sl[ib]+=u*len;sl[ic]+=v*len}});
  var nz=[];for(i=0;i<NV;i++)if(cnt[i]>0)nz.push(cnt[i]/VA[i]);if(!nz.length){g.attributes.aShort.array.fill(0);g.attributes.aShort.needsUpdate=true;return}
  nz.sort(function(a,b){return a-b});var ref=nz[Math.floor(nz.length*0.5)]||1,W2=SHW2;
  for(i=0;i<NV;i++){W2[i*2]=cnt[i]>0?sl[i]/cnt[i]:0;W2[i*2+1]=Math.sqrt(Math.min(1,cnt[i]/VA[i]/ref))}
@@ -757,12 +756,13 @@ var PH={G:0,tex:null,data:null,o:null,v:null,tmp:null,gx:null,gy:null,gz:null,gl
 function yLow(x,y,z){var w=sm((z+0.35)/0.55);return cur.nape+(cur.front-cur.nape)*w}
 function earD(x,y,z){var dx=Math.abs(x)-1.41,dy=y-2.75,dz=z+0.75;return Math.sqrt(dx*dx+dy*dy+dz*dz)}
 // combing direction per root (rest-pose coords decide the region; tg = direction away from the crown)
+function partSide(dx,x,y,z){var sg=dx>=0?1:-1,a=Math.abs(dx);if(a<0.09&&hsh3(Math.floor(x*400),Math.floor(y*400),Math.floor(z*400),7)+0.5<0.42*(1-a/0.09))sg=-sg;return sg}
 function flowDir(c,s,tg,D){var x=s.x,y=s.y,z=s.z,f=c.flow,pt=c.part===undefined?0.45:c.part,front=sm((z-0.1)/0.7);
  if(f==='crown')D.copy(tg).addScaledVector(new T.Vector3().crossVectors(s.n,tg),0.25);
  else if(f==='forward')D.set(x*0.3,-0.25,1);
  else if(f==='back')D.set(x*0.25,0.1,-1);
- else if(f==='side'){if(x<pt)D.set(-1,0.1,-0.45);else D.set(1,-0.8,-0.3)}
- else if(f==='center'){var sg=x>=pt-0.45?1:-1;D.set(sg,-0.35,0.25+0.5*front)}
+ else if(f==='side'){if(partSide(x-pt,x,y,z)<0)D.set(-1,0.1,-0.45);else D.set(1,-0.8,-0.3)}
+ else if(f==='center'){var dx0=x-(pt-0.45),sg=partSide(dx0,x,y,z);D.set(sg,-0.35,0.25+0.5*front)}
  else{D.set(x*0.2,1,-0.35);var sd=sm((Math.abs(x)-0.6)/0.3);D.lerp(new T.Vector3(x*0.1,0.2,-1),sd)}
  if(f!=='crown'){var w=sm((-z-0.3)/0.7)*sm((3.95-y)/0.5);D.lerp(new T.Vector3(x*0.3,-1,-0.3),w)}
  return D}
@@ -1009,6 +1009,12 @@ var bl=new T.Mesh(new T.BoxGeometry(0.66,0.2,0.04),mS);bl.position.set(0,0.1,0.0
 var teeth=new T.Group();tilt.add(teeth);
 var gmat=new T.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.5}),gdm=new T.Mesh(new T.BoxGeometry(0.68,0.22,0.12),gmat);gdm.position.set(0,0.1,0.06);tilt.add(gdm);
 clip.visible=false;scene.add(clip);
+var lnPrev=new T.Line(new T.BufferGeometry().setFromPoints([new T.Vector3(),new T.Vector3()]),new T.LineBasicMaterial({color:0xff4040,depthTest:false}));lnPrev.renderOrder=11;lnPrev.visible=false;scene.add(lnPrev);
+function lnPrevSet(a,b){var p=lnPrev.geometry.attributes.position;p.setXYZ(0,a.x,a.y,a.z);p.setXYZ(1,b.x,b.y,b.z);p.needsUpdate=true;lnPrev.visible=true}
+// straight razor line: sample the screen segment, project each sample onto the head, cut along the surface path
+function lnFinish(e){var dx=e.clientX-lnS.x,dy=e.clientY-lnS.y,n=Math.max(2,Math.ceil(Math.hypot(dx,dy)/2)),prev=null;
+ for(var i=0;i<=n;i++){var h=hit({clientX:lnS.x+dx*i/n,clientY:lnS.y+dy*i/n});if(!h)continue;
+  if(prev){var fx=h.p.clone().sub(prev);fx.addScaledVector(h.n,-fx.dot(h.n));if(fx.lengthSq()>1e-10){fx.normalize();var m=Math.max(1,Math.ceil(prev.distanceTo(h.p)/(S.barb.lw*0.3)));for(var k=1;k<=m;k++)doCut(prev.clone().lerp(h.p,k/m),h.n,0,fx)}}prev=h.p}}
 function guard(){var s=$('gd');gdm.visible=+s.value>0.015;gmat.color.set(['#ffffff','#d94f4f','#e0a030','#5fb85f','#4f8fd9','#a060d0'][s.selectedIndex])}
 var NP=1500,pp=new Float32Array(NP*3),pv=new Float32Array(NP*3),pl=new Float32Array(NP),pc=new Float32Array(NP*3),pn=0;
 for(var i0=0;i0<NP;i0++)pp[i0*3+1]=-99;
@@ -1092,7 +1098,7 @@ function cutAt(pt,rad,cap,taper,o){o=o||{};var r={c:0,good:0,over:0,prog:0},gf=G
     if(gf&&L===LY.scalp){var er=Math.min(H.L0[i],nc)-Math.min(H.L0[i],gf(RT[j+1]));if(er<-0.06)r.over++;else if(er<=0.06)r.good++;else r.prog++}}})});
  return r}
 function doCut(pt,nm,cap,fx){var B=S.barb,tool=auto?'clipper':B.tool,w=(+$('bw').value)*LD.bl.w,cp,tp=LD.bl.taper,o={n:nm,fx:fx||null};
- if(tool==='trimmer'){cp=0.004;w*=0.55;tp=0;o.jit=0.03}
+ if(tool==='razor'){cp=0;w*=0.7;tp=0;o.jit=0}else if(tool==='line'){cp=0;w=B.lw;tp=0;o.jit=0}else if(tool==='trimmer'){cp=0.004;w*=0.55;tp=0;o.jit=0.03}
  else if(tool==='scissors'){cp=B.slen;tp=0;o.jit=0.12}
  else if(tool==='thin'){cp=9;o.thin=B.thin}
  else{cp=(cap<=0.0125?LD.bl.min:Math.max(cap,LD.bl.min))+B.lever*0.03;o.flick=B.flick}
@@ -1102,7 +1108,7 @@ function doCut(pt,nm,cap,fx){var B=S.barb,tool=auto?'clipper':B.tool,w=(+$('bw')
 var ac=null,og=null,osc=null;
 function startBuzz(){var sn=$('snd');if(sn&&!sn.checked)return;try{if(!ac){ac=new(window.AudioContext||window.webkitAudioContext)();var o=ac.createOscillator(),f=ac.createBiquadFilter();og=ac.createGain();o.type='sawtooth';o.frequency.value=LD.mt.pitch;osc=o;f.type='lowpass';f.frequency.value=700;og.gain.value=0;o.connect(f);f.connect(og);og.connect(ac.destination);o.start()}if(ac.state==='suspended')ac.resume();og.gain.setTargetAtTime(0.03,ac.currentTime,0.03)}catch(e){}}
 function stopBuzz(){if(og&&ac)og.gain.setTargetAtTime(0,ac.currentTime,0.05)}
-var tpos=new T.Vector3(),tq=new T.Quaternion(),tn=new T.Vector3(0,0,1),cutting=false,auto=null,mode='orb',lastPt=null,combing=false,lastCb=null,lastFx=null;
+var tpos=new T.Vector3(),tq=new T.Quaternion(),tn=new T.Vector3(0,0,1),cutting=false,auto=null,mode='orb',lastPt=null,combing=false,lastCb=null,lastFx=null,lnS=null;
 function setPose(pt,n,ya){var y=ya?ya.clone():new T.Vector3(0,1,0);y.addScaledVector(n,-y.dot(n));if(y.lengthSq()<1e-3){y.set(0,0,-1);y.addScaledVector(n,-y.dot(n))}y.normalize();var x=new T.Vector3().crossVectors(y,n);
  tq.setFromRotationMatrix(new T.Matrix4().makeBasis(x,y,n));tpos.copy(pt).addScaledVector(n,0.03);tn.copy(n);if(!clip.visible){clip.position.copy(tpos);clip.quaternion.copy(tq);clip.visible=true}}
 function capY(y){return 0.02+0.43*sm((y-2.05)/1.75)}
@@ -1222,18 +1228,18 @@ var CAMS={front:['Front','أمامي',0,1.48,9.5],q34:['¾','¾',0.75,1.45,9.5],
 function goCam(k){var c=CAMS[k];var d=c[2]-th;d=Math.atan2(Math.sin(d),Math.cos(d));camGoal={th:th+d,ph:c[3],dist:c[4],t:k==='close'?new T.Vector3(0,2.75,0.5):d0.t.clone()}}
 var pts={},lastD=0,rc=new T.Raycaster();
 function hit(e){var r=cv.getBoundingClientRect();rc.setFromCamera(new T.Vector2((e.clientX-r.left)/r.width*2-1,-((e.clientY-r.top)/r.height)*2+1),cam);var h=rc.intersectObject(skin)[0];if(!h)return null;var n=h.face.normal.clone();if(n.dot(rc.ray.direction)>0)n.negate();return{p:h.point.clone(),n:n}}
-function hover(e,cut){var h=hit(e);if(!h){if(!cut)clip.visible=false;return}setPose(h.p,h.n);
- if(cut){var cap=+$('gd').value,from=lastPt||h.p,d=from.distanceTo(h.p),rad=+$('bw').value,steps=Math.max(1,Math.ceil(d/(rad*0.4)));var fxv=h.p.clone().sub(from);fxv.addScaledVector(h.n,-fxv.dot(h.n));var fxo=fxv.lengthSq()>1e-8?fxv.normalize():lastFx;if(fxo){lastFx=fxo;setPose(h.p,h.n,fxo.clone().negate())}
+function hover(e,cut){var h=hit(e);if(!h){if(!cut)clip.visible=false;return}if(cut&&lnS){setPose(h.p,h.n);lnPrevSet(lnS.p,h.p);return}setPose(h.p,h.n);
+ if(cut){var cap=+$('gd').value,from=lastPt||h.p,d=from.distanceTo(h.p),rad=S.barb.tool==='line'?S.barb.lw:+$('bw').value*(S.barb.tool==='razor'?0.7:1),steps=Math.max(1,Math.ceil(d/(rad*0.4)));var fxv=h.p.clone().sub(from);fxv.addScaledVector(h.n,-fxv.dot(h.n));var fxo=fxv.lengthSq()>1e-8?fxv.normalize():lastFx;if(fxo){lastFx=fxo;setPose(h.p,h.n,fxo.clone().negate())}
   for(var s=1;s<=steps;s++)doCut(from.clone().lerp(h.p,s/steps),h.n,cap,fxo);lastPt=h.p;startBuzz()}else lastPt=null}
 function sculptMove(e){var h=hit(e);sculptHover(h);if(!sculpting||!h)return;if(BR.t==='grab'&&!brushMod.smooth)return;var from=lastSc||h.p,d=from.distanceTo(h.p),steps=Math.max(1,Math.min(12,Math.ceil(d/(BR.r*0.3))));for(var s=1;s<=steps;s++)brushAt(from.clone().lerp(h.p,s/steps),h.n,true);lastSc=h.p}
 st.addEventListener('contextmenu',function(e){e.preventDefault()});
 st.addEventListener('pointerdown',function(e){if(e.target!==cv)return;st.setPointerCapture(e.pointerId);pts[e.pointerId]={x:e.clientX,y:e.clientY,b:e.button};camGoal=null;brushMod.inv=e.ctrlKey||e.altKey||e.metaKey;brushMod.smooth=e.shiftKey;
- if(mode==='clip'&&e.button===0&&!auto&&Object.keys(pts).length===1){cutting=true;lastPt=null;hover(e,true)}
+ if(mode==='clip'&&e.button===0&&!auto&&Object.keys(pts).length===1){cutting=true;lastPt=null;lastFx=null;if(S.barb.tool==='line'&&S.barb.straight){var h0=hit(e);if(h0){lnS={x:e.clientX,y:e.clientY,p:h0.p};setPose(h0.p,h0.n)}else cutting=false}else hover(e,true)}
  else if(mode==='sculpt'&&e.button===0&&Object.keys(pts).length===1){var h=hit(e);if(h){sculpting=true;lastSc=null;if(BR.t==='grab'&&!brushMod.smooth)grabStart(h);else sculptMove(e)}}
  else if(mode==='comb'&&e.button===0&&Object.keys(pts).length===1){var hc=hit(e);if(hc){combing=true;lastCb=hc.p;combPose(hc)}}
  else if(mode==='groom'&&e.button===0&&Object.keys(pts).length===1){var hg=hit(e);if(hg){grooming=true;lastGr=hg.p;groomAt(hg.p,null)}}
  else if(mode==='tieplace'&&e.button===0){var ht=hit(e);if(ht){var uq=ht.p.clone().sub(HC).divide(HR).normalize();S.tie.u=[uq.x,uq.y,uq.z];if(S.tie.mode==='none')S.tie.mode='pony';updTie('u');syncUI();commit();setMode('groom')}}});
-function up(e){delete pts[e.pointerId];lastD=0;if(cutting){cutting=false;lastPt=null;if(!auto)stopBuzz();commit()}if(sculpting){sculpting=false;grab=null;lastSc=null;commit()}if(combing){combing=false;lastCb=null;commit()}if(grooming){grooming=false;lastGr=null;commit()}}
+function up(e){delete pts[e.pointerId];lastD=0;if(cutting){cutting=false;lastPt=null;if(lnS){lnFinish(e);lnS=null;lnPrev.visible=false}if(!auto)stopBuzz();commit()}if(sculpting){sculpting=false;grab=null;lastSc=null;commit()}if(combing){combing=false;lastCb=null;commit()}if(grooming){grooming=false;lastGr=null;commit()}}
 st.addEventListener('pointerup',up);st.addEventListener('pointercancel',up);
 st.addEventListener('pointerleave',function(){ring.visible=false;combM.visible=false});
 st.addEventListener('pointermove',function(e){var r0=cv.getBoundingClientRect();mouseN.set((e.clientX-r0.left)/r0.width*2-1,-((e.clientY-r0.top)/r0.height)*2+1);
@@ -1408,7 +1414,7 @@ function buildUI(){
    '<p class="desc">'+sp('Paint with the Tie mask brush to add strands to the tie or leave them loose.','ارسم بفرشاة قناع الربط لإضافة خصل إلى الربطة أو تركها مفلوتة.')+'</p>',true);
  B.barber=Head_('Barber tools','أدوات الحلاقة','Cut scalp hair and beards with a simulated clipper, then score your fade.','قصّ شعر الرأس واللحية بماكينة محاكاة، ثم قيّم تدريجك.')+
   '<button id="cmBtn" class="p" style="margin-bottom:8px">'+sp('Customize clipper (C)','تخصيص الماكينة (C)')+'</button>'+
-  Sec_('Pro barber tools','أدوات الحلاقة الاحترافية',Sel_('barb.tool','Tool','الأداة',[['clipper','Clipper (guards)','ماكينة (أمشاط)'],['trimmer','Trimmer / edger (line-up)','تريمر / تحديد الحواف'],['scissors','Scissors (cut to length)','مقص (قص بطول محدد)'],['thin','Thinning shears (remove bulk)','مقص تخفيف (إزالة الكثافة)']])+K_('barb.sym','Mirror the cut on both sides','قص متماثل على الجانبين')+R_('barb.lever','Clipper lever (open = longer)','ذراع الماكينة (مفتوح = أطول)',0,1,0.05)+R_('barb.flick','Flick-out (soft blend at the heel)','السحب للخارج (دمج ناعم)',0,1,0.05)+R_('barb.slen','Scissor length','طول القص بالمقص',0.05,2,0.01)+R_('barb.thin','Thinning amount','مقدار التخفيف',0.05,0.8,0.01)+'<p class="desc">'+sp('The blade cuts only the hair under it, edge on to your stroke, so the line follows your hand. Fades and challenges still use the clipper.','الشفرة تقص الشعر الذي تحتها فقط وبعرض متعامد مع حركتك، فيتبع خط القص يدك. التدريج والتحديات تستخدم الماكينة.')+'</p>',true)+
+  Sec_('Pro barber tools','أدوات الحلاقة الاحترافية',Sel_('barb.tool','Tool','الأداة',[['clipper','Clipper (guards)','ماكينة (أمشاط)'],['razor','Straight razor (shave to skin)','موس حاد (حلاقة حتى الجلد)'],['line','Line designer (razor lines)','رسم الخطوط (خطوط بالموس)'],['trimmer','Trimmer / edger (line-up)','تريمر / تحديد الحواف'],['scissors','Scissors (cut to length)','مقص (قص بطول محدد)'],['thin','Thinning shears (remove bulk)','مقص تخفيف (إزالة الكثافة)']])+K_('barb.sym','Mirror the cut on both sides','قص متماثل على الجانبين')+R_('barb.lever','Clipper lever (open = longer)','ذراع الماكينة (مفتوح = أطول)',0,1,0.05)+R_('barb.flick','Flick-out (soft blend at the heel)','السحب للخارج (دمج ناعم)',0,1,0.05)+R_('barb.slen','Scissor length','طول القص بالمقص',0.05,2,0.01)+R_('barb.thin','Thinning amount','مقدار التخفيف',0.05,0.8,0.01)+R_('barb.lw','Line width','عرض الخط',0.015,0.12,0.005)+K_('barb.straight','Straight lines (press, drag, release)','خطوط مستقيمة (اضغط واسحب ثم أفلت)')+'<p class="desc">'+sp('The blade cuts only the hair under it, edge on to your stroke, so the line follows your hand. Fades and challenges still use the clipper.','الشفرة تقص الشعر الذي تحتها فقط وبعرض متعامد مع حركتك، فيتبع خط القص يدك. التدريج والتحديات تستخدم الماكينة.')+'</p>',true)+
   '<div class="row"><label for="gd">'+sp('Guard comb (keys 1–6)','مشط الحماية (المفاتيح 1–6)')+'</label><select id="gd">'+GD.map(function(g2,i){return'<option value="'+g2[0]+'"'+(i===2?' selected':'')+' data-en="'+(i?g2[1]+' · '+['','1.5 mm','3 mm','6 mm','10 mm','13 mm'][i]:'No guard (skin)')+'" data-ar="'+(i?g2[1]+' · '+['','1.5 مم','3 مم','6 مم','10 مم','13 مم'][i]:'بدون مشط (حتى الجلد)')+'"></option>'}).join('')+'</select></div>'+
   '<div class="row"><label for="bw">'+sp('Cut width','عرض القص')+'<b id="bwv"></b></label><input type="range" id="bw" min="0.15" max="0.6" step="0.01" value="0.3"></div>'+
   '<div class="two">'+Btn_('auto','Auto fade','تدريج تلقائي')+Btn_('regrow','Regrow hair','إعادة إنبات الشعر')+'</div>'+
